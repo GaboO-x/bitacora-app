@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitácora Virtual — Login</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="manifest" href="./manifest.json" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Bitácora Virtual</h1>
+      <p class="muted">Inicio de sesión</p>
+
+      <label>Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="correo@ejemplo.com"/>
+
+      <label>Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="********"/>
+
+      <button id="btnLogin">Entrar</button>
+
+      <p id="msg" class="msg"></p>
+
+      <details class="details">
+        <summary>Configurar Supabase (solo admin)</summary>
+        <p class="muted small">
+          Si es la primera vez en este navegador, pega el Project URL y la Publishable (anon) key y guarda.
+        </p>
+        <label>Project URL</label>
+        <input id="cfgUrl" placeholder="https://TU-PROYECTO.supabase.co" />
+        <label>Publishable / Anon Key</label>
+        <input id="cfgAnon" placeholder="sb_publishable_..." />
+        <button id="btnSaveCfg" class="secondary">Guardar configuración</button>
+        <p id="cfgMsg" class="msg small"></p>
+      </details>
+
+      <p class="muted small">¿Olvidaste tu contraseña? Pide al admin que te envíe “password recovery”.</p>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

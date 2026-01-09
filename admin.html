@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitácora Virtual — Admin</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Bitácora Virtual</div>
+    <div class="topbar-right">
+      <a href="./app.html" class="secondary btnlink">Volver</a>
+      <button id="btnLogout" class="secondary">Salir</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Panel Admin (mínimo)</h2>
+      <p class="muted">Invitar usuarios por Edge Function.</p>
+
+      <h3>Invitar usuario</h3>
+      <label>Email</label>
+      <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
+      <label>Nombre completo</label>
+      <input id="inviteName" type="text" placeholder="Nombre Apellido" />
+      <label>Rol</label>
+      <select id="inviteRole">
+        <option value="user">user</option>
+        <option value="leader">leader</option>
+        <option value="admin">admin</option>
+      </select>
+      <label>Division</label>
+      <select id="inviteDivision">
+        <option value="">(vacío)</option>
+        <option value="makers">makers</option>
+        <option value="takers">takers</option>
+      </select>
+      <label>Squad</label>
+      <select id="inviteSquad">
+        <option value="">(vacío)</option>
+        <optgroup label="Makers">
+          <option value="URM">URM</option><option value="UVM">UVM</option><option value="UAM">UAM</option><option value="UNM">UNM</option><option value="UAZM">UAZM</option>
+        </optgroup>
+        <optgroup label="Takers">
+          <option value="URT">URT</option><option value="UVT">UVT</option><option value="UAT">UAT</option><option value="UNT">UNT</option><option value="UAZT">UAZT</option>
+        </optgroup>
+      </select>
+
+      <button id="btnInvite">Enviar invitación</button>
+
+      <p id="msg" class="msg"></p>
+      <details class="details">
+        <summary>Nota</summary>
+        <p class="muted small">Te pedirá el password del admin por prompt solo para enviar la invitación.</p>
+      </details>
+    </div>
+  </div>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>
