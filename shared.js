@@ -31,20 +31,18 @@ export async function requireSession() {
 }
 
 export async function getMyProfile(supabase, userId) {
-  // Use limit(1) + maybeSingle() to avoid PostgREST "Cannot coerce..." errors if duplicates exist.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, role, division, squad_code, active")
     .eq("id", userId)
-    .limit(1)
-    .maybeSingle();
-
+    .single();
   if (error) return { profile: null, error };
   return { profile: data, error: null };
 }
 
-export async function callInviteEdge(supabase, payload) {
-  // The active Edge Function is "bright-task". Payload must include "email" at root level.
-  const { data, error } = await supabase.functions.invoke("bright-task", { body: payload });
+export async function callInviteEdge(supabase, adminEmail, adminPassword, payload) {
+  const { data, error } = await supabase.functions.invoke("call-admin-users", {
+    body: { admin_email: adminEmail, admin_password: adminPassword, payload }
+  });
   return { data, error };
 }
