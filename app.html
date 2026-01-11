@@ -1,44 +1,23 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bitácora Virtual</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <div class="topbar">
-    <div class="brand">Bitácora Virtual</div>
-    <div class="topbar-right">
-      <span id="who" class="pill"></span>
-      <button id="btnLogout" class="secondary">Salir</button>
-    </div>
-  </div>
+import { requireSession, setMsg, getMyProfile } from "./shared.js";
 
-  <div class="container">
-    <div class="card">
-      <h2>Inicio</h2>
-      <p class="muted">Pantalla mínima post-login. Aquí luego conectamos cuadernos/secciones/notas.</p>
+(async () => {
+  const { supabase, session } = await requireSession();
+  if (!supabase || !session) return window.location.href = "./Bitacora_index.html";
 
-      <div class="grid">
-        <div class="panel">
-          <h3>Mi perfil</h3>
-          <pre id="profile" class="pre"></pre>
-        </div>
-        <div class="panel">
-          <h3>Accesos rápidos</h3>
-          <ul>
-            <li><a href="./app.html">Inicio</a></li>
-            <li><a id="adminLink" href="./admin.html" style="display:none;">Panel Admin</a></li>
-            <li><a href="./Bitacora_index.html">Configurar contraseña (si vienes de email)</a></li>
-          </ul>
-        </div>
-      </div>
+  document.getElementById("btnLogout").addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    window.location.href = "./Bitacora_index.html";
+  });
 
-      <p id="msg" class="msg"></p>
-    </div>
-  </div>
+  const user = session.user;
+  document.getElementById("who").textContent = user.email || user.id;
 
-  <script type="module" src="./app.js"></script>
-</body>
-</html>
+  const { profile, error } = await getMyProfile(supabase, user.id);
+  if (error) return setMsg("msg", error.message, true);
+
+  document.getElementById("profile").textContent = JSON.stringify(profile, null, 2);
+
+  if (profile?.role === "admin") {
+    document.getElementById("adminLink").style.display = "inline";
+  }
+})();
