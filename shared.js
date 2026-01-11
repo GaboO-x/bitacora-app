@@ -31,7 +31,7 @@ export async function requireSession() {
 }
 
 export async function getMyProfile(supabase, userId) {
-  // Use maybeSingle + limit to avoid PostgREST "Cannot coerce ... to a single JSON object"
+  // Use limit(1) + maybeSingle() to avoid PostgREST "Cannot coerce..." errors if duplicates exist.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, role, division, squad_code, active")
@@ -44,7 +44,7 @@ export async function getMyProfile(supabase, userId) {
 }
 
 export async function callInviteEdge(supabase, payload) {
-  // Edge Function real: /functions/v1/bright-task
+  // The active Edge Function is "bright-task". Payload must include "email" at root level.
   const { data, error } = await supabase.functions.invoke("bright-task", { body: payload });
   return { data, error };
 }
