@@ -1,10 +1,134 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bitácora — Configurar contraseña</title>
-<link rel="stylesheet" href="./styles.css"></head>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitácora — Configurar contraseña</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 <body>
-<div class="container"><div class="card">
-<h2>Reemplaza este archivo</h2>
-<p class="muted">Aquí debe ir tu Bitacora_index.html real (la página de configurar contraseña) si quieres tenerla en el mismo sitio.</p>
-</div></div>
-</body></html>
+  <div class="container">
+    <div class="card">
+      <h2>Configurar contraseña</h2>
+      <p class="muted" id="subtitle">Abre tu enlace de invitación desde el correo y define tu contraseña.</p>
+
+      <div style="height:12px"></div>
+
+      <label class="muted" for="pw1">Nueva contraseña</label>
+      <input id="pw1" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
+
+      <div style="height:10px"></div>
+
+      <label class="muted" for="pw2">Confirmar contraseña</label>
+      <input id="pw2" type="password" autocomplete="new-password" placeholder="Repite la contraseña" />
+
+      <div style="height:14px"></div>
+
+      <button id="btnSet" class="btn" type="button">Guardar contraseña</button>
+
+      <div style="height:12px"></div>
+      <div id="msg" class="msg"></div>
+
+      <div style="height:14px"></div>
+      <p class="muted" id="hint" style="display:none;">
+        Si este enlace expiró, pídele al admin que te re-envíe una invitación.
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ensureSupabase, getCfg, setMsg } from "./shared.js";
+
+    const elBtn = document.getElementById("btnSet");
+    const elHint = document.getElementById("hint");
+    const elSub = document.getElementById("subtitle");
+
+    function showErr(text){
+      setMsg("msg", text, true);
+    }
+    function showOk(text){
+      setMsg("msg", text, false);
+    }
+
+    async function ensureSessionFromLink(supabase){
+      // 1) If a session already exists (cached), use it.
+      const { data: s1 } = await supabase.auth.getSession();
+      if (s1?.session) return s1.session;
+
+      // 2) If Supabase redirected with an auth "code" (PKCE), exchange it.
+      // This is safe to call even if there's no code; it will just return an error.
+      try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+        if (!error && data?.session) return data.session;
+      } catch {}
+
+      // 3) As a last check, try again (some providers set session after exchange).
+      const { data: s2 } = await supabase.auth.getSession();
+      return s2?.session || null;
+    }
+
+    async function main(){
+      const cfg = getCfg();
+      if (!cfg?.url || !cfg?.anon){
+        elSub.textContent = "Esta página necesita la configuración de Supabase. Abre primero la página de login/config y vuelve a intentar.";
+        showErr("Falta configuración de Supabase (Project URL / Publishable Key).");
+        elHint.style.display = "block";
+        elBtn.disabled = true;
+        return;
+      }
+
+      const supabase = await ensureSupabase();
+      if (!supabase){
+        showErr("No se pudo inicializar Supabase. Revisa tu configuración.");
+        elHint.style.display = "block";
+        elBtn.disabled = true;
+        return;
+      }
+
+      showOk("Validando enlace…");
+
+      const session = await ensureSessionFromLink(supabase);
+      if (!session){
+        showErr("Enlace inválido o expirado. No se pudo abrir la sesión de recuperación/invitación.");
+        elHint.style.display = "block";
+        elBtn.disabled = true;
+        return;
+      }
+
+      showOk("Listo. Define tu nueva contraseña y guárdala.");
+      elBtn.disabled = false;
+
+      elBtn.addEventListener("click", async () => {
+        const pw1 = (document.getElementById("pw1").value || "").trim();
+        const pw2 = (document.getElementById("pw2").value || "").trim();
+
+        if (pw1.length < 8){
+          showErr("La contraseña debe tener al menos 8 caracteres.");
+          return;
+        }
+        if (pw1 !== pw2){
+          showErr("Las contraseñas no coinciden.");
+          return;
+        }
+
+        elBtn.disabled = true;
+        showOk("Guardando contraseña…");
+
+        const { error } = await supabase.auth.updateUser({ password: pw1 });
+        if (error){
+          showErr(error.message || "No se pudo actualizar la contraseña.");
+          elBtn.disabled = false;
+          return;
+        }
+
+        showOk("Contraseña guardada. Redirigiendo a la app…");
+        setTimeout(() => {
+          window.location.href = "./app.html";
+        }, 900);
+      });
+    }
+
+    main();
+  </script>
+</body>
+</html>
