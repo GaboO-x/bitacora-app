@@ -42,10 +42,17 @@ export async function getMyProfile(supabase, userId) {
 
 export async function callInviteEdge(supabase, adminEmail, adminPassword, payload) {
   const { data, error } = await supabase.functions.invoke("bright-task", {
-    body: { 
-  email: payload.email,
-  full_name: payload.full_name
-}
+    body: {
+      email: payload.email,
+      full_name: payload.full_name,
+      role: payload.role,
+      // multi
+      divisions: payload.divisions || [],
+      squads: payload.squads || [],
+      // backward-compatible (singular)
+      division: payload.division ?? null,
+      squad_code: payload.squad_code ?? null
+    }
   });
   return { data, error };
 }
