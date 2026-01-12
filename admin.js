@@ -16,19 +16,27 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
   document.getElementById("btnInvite").addEventListener("click", async () => {
     const email = (document.getElementById("inviteEmail").value || "").trim().toLowerCase();
     const full_name = (document.getElementById("inviteName").value || "").trim();
-    const role = document.getElementById("inviteRole").value;
-    const division = (document.getElementById("inviteDivision").value || "").trim() || null;
-    const squad_code = (document.getElementById("inviteSquad").value || "").trim() || null;
+
+    const role = (document.querySelector('input[name="inviteRole"]:checked')?.value || "user").trim();
+
+    const divisions = Array.from(document.querySelectorAll('input[name="inviteDivision"]:checked'))
+      .map(x => (x.value || "").trim())
+      .filter(Boolean);
+
+    const squads = Array.from(document.querySelectorAll('input[name="inviteSquad"]:checked'))
+      .map(x => (x.value || "").trim())
+      .filter(Boolean);
 
     if (!email) return setMsg("msg", "Falta email.", true);
     if (!full_name) return setMsg("msg", "Falta nombre completo.", true);
 
-    const adminPassword = prompt("Password del admin (solo para enviar invitación):");
-    if (!adminPassword) return setMsg("msg", "Cancelado.", true);
+    // Backward-compatible fields (si el backend aún espera singular)
+    const division = divisions[0] || null;
+    const squad_code = squads[0] || null;
 
-    const payload = { email, full_name, role, division, squad_code };
+    const payload = { email, full_name, role, divisions, squads, division, squad_code };
 
-    const { data, error } = await callInviteEdge(supabase, user.email, adminPassword, payload);
+    const { data, error } = await callInviteEdge(supabase, user.email, null, payload);
     if (error) return setMsg("msg", error.message, true);
 
     try {
