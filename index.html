@@ -28,10 +28,10 @@
   <div class="wrap">
     <div class="card">
       <h1>Bitácora</h1>
-      <p class="muted">Login normal. (El acceso Admin se realiza solo por su URL directa.)</p>
-
+      
       <div class="hr"></div>
 
+      <div hidden>
       <h2>1) Configuración de Supabase</h2>
       <div class="row">
         <div>
@@ -48,8 +48,9 @@
       </div>
 
       <div class="hr"></div>
+    </div>
 
-      <h2>2) Iniciar sesión</h2>
+      <h2>Bienvenido Inicia sesión</h2>
       <div class="row">
         <div>
           <label for="email">Email</label>
@@ -62,15 +63,9 @@
       </div>
 
       <div class="btns">
-        <button id="btnLogin" type="button">Entrar</button>
-        <a class="btn secondary" href="./app.html">Ir a App</a>
+        <button id="btnLogin" type="button">Ingresar</button>
       </div>
 
-      <div id="msg" class="msg"></div>
-      <p class="muted" style="margin-top:12px;">
-        Si vienes desde <code>admin.html</code>, después de iniciar sesión volverás automáticamente.
-      </p>
-    </div>
   </div>
 
   <script type="module">
