@@ -1,9 +1,21 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const CFG_KEY = "bitacora_cfg_v1";
 
 export function getCfg() {
-  try { return JSON.parse(localStorage.getItem(CFG_KEY) || "null"); } catch { return null; }
+  // 1) Prefer saved localStorage config (useful for dev/override)
+  try {
+    const stored = JSON.parse(localStorage.getItem(CFG_KEY) || "null");
+    if (stored?.url && stored?.anon) return stored;
+  } catch {}
+
+  // 2) Fallback to repo-shipped config (recommended for end-users)
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    return { url: SUPABASE_URL, anon: SUPABASE_ANON_KEY };
+  }
+
+  return null;
 }
 
 export function saveCfg(url, anon) {
@@ -42,17 +54,10 @@ export async function getMyProfile(supabase, userId) {
 
 export async function callInviteEdge(supabase, adminEmail, adminPassword, payload) {
   const { data, error } = await supabase.functions.invoke("bright-task", {
-    body: {
-      email: payload.email,
-      full_name: payload.full_name,
-      role: payload.role,
-      // multi
-      divisions: payload.divisions || [],
-      squads: payload.squads || [],
-      // backward-compatible (singular)
-      division: payload.division ?? null,
-      squad_code: payload.squad_code ?? null
-    }
+    body: { 
+  email: payload.email,
+  full_name: payload.full_name
+}
   });
   return { data, error };
 }
