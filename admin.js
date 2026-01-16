@@ -2,7 +2,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
 
 (async () => {
   const { supabase, session } = await requireSession();
-  if (!supabase || !session) return window.location.href = "./index.html";
+  if (!supabase || !session) {
+    window.location.href = "./index.html";
+    return;
+  }
 
   // Logout
   document.getElementById("btnLogout")?.addEventListener("click", async () => {
@@ -10,45 +13,48 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     window.location.href = "./index.html";
   });
 
+  // AuthZ: solo admin
   const user = session.user;
   const { profile } = await getMyProfile(supabase, user.id);
-  if (!profile || profile.role !== "admin") return window.location.href = "./app.html";
+  if (!profile || profile.role !== "admin") {
+    window.location.href = "./app.html";
+    return;
+  }
 
-  // -----------------
-  // Navegación (Inicio)
-  // -----------------
+  // -----------------------------
+  // Navegación (Inicio / Secciones)
+  // -----------------------------
   const sections = {
-    home: document.getElementById("secHome"),
-    invite: document.getElementById("secInvite"),
-    calendar: document.getElementById("secCalendar"),
-    announcements: document.getElementById("secAnnouncements"),
-    materials: document.getElementById("secMaterials"),
+    home: document.getElementById("sectionHome"),
+    invite: document.getElementById("sectionInvite"),
+    calendar: document.getElementById("sectionCalendar"),
+    announcements: document.getElementById("sectionAnnouncements"),
+    materials: document.getElementById("sectionMaterials"),
   };
 
   function showSection(key) {
-    Object.entries(sections).forEach(([k, el]) => {
-      if (!el) return;
-      el.style.display = (k === key) ? "" : "none";
-    });
+    Object.values(sections).forEach(el => el?.classList.remove("active"));
+    sections[key]?.classList.add("active");
   }
 
-  // Default: Home
-  showSection("home");
-
+  // Menu buttons
   document.getElementById("navInvite")?.addEventListener("click", () => showSection("invite"));
-  document.getElementById("navCalendar")?.addEventListener("click", () => showSection("calendar"));
-  document.getElementById("navAnnouncements")?.addEventListener("click", () => showSection("announcements"));
-  document.getElementById("navMaterials")?.addEventListener("click", () => showSection("materials"));
-
-  document.querySelectorAll('[data-go="home"]').forEach(btn => {
-    btn.addEventListener("click", () => showSection("home"));
+  document.getElementById("navCalendar")?.addEventListener("click", async () => {
+    showSection("calendar");
+    await loadCalActivities();
   });
 
-  // -----------------
+  // Back to home buttons
+  document.getElementById("backFromInvite")?.addEventListener("click", () => showSection("home"));
+  document.getElementById("backFromCalendar")?.addEventListener("click", () => showSection("home"));
+  document.getElementById("backFromAnnouncements")?.addEventListener("click", () => showSection("home"));
+  document.getElementById("backFromMaterials")?.addEventListener("click", () => showSection("home"));
+
+  // -----------------------------
   // Invitar usuario
-  // -----------------
+  // -----------------------------
   const btnInvite = document.getElementById("btnInvite");
-  let loadingTimer = null;
+  let inviteLoadingTimer = null;
 
   function setInviteLoading(isLoading) {
     if (!btnInvite) return;
@@ -59,9 +65,9 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     if (!isLoading) {
       btnInvite.disabled = false;
       btnInvite.textContent = btnInvite.dataset.originalText;
-      if (loadingTimer) {
-        clearInterval(loadingTimer);
-        loadingTimer = null;
+      if (inviteLoadingTimer) {
+        clearInterval(inviteLoadingTimer);
+        inviteLoadingTimer = null;
       }
       return;
     }
@@ -70,7 +76,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     const base = "Enviando";
     let dots = 0;
     btnInvite.textContent = base;
-    loadingTimer = setInterval(() => {
+    inviteLoadingTimer = setInterval(() => {
       dots = (dots + 1) % 4;
       btnInvite.textContent = base + ".".repeat(dots);
     }, 350);
@@ -149,11 +155,24 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     return num.toLocaleString("es-CR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
 
-  function setCalBusyUI(isBusy) {
+  function setCalMsg(text, isError) {
+    setMsg("calMsg", text, !!isError);
+  }
+
+  function setCalSaveLoading(isLoading, idleText) {
     if (!calEls.btnSave) return;
-    calEls.btnSave.disabled = isBusy;
-    calEls.btnCancel && (calEls.btnCancel.disabled = isBusy);
-    calEls.btnSave.textContent = isBusy ? "Procesando…" : (calSelectedId ? "Guardar cambios" : "Crear actividad");
+    if (!calEls.btnSave.dataset.originalText) {
+      calEls.btnSave.dataset.originalText = calEls.btnSave.textContent || "Guardar";
+    }
+
+    if (!isLoading) {
+      calEls.btnSave.disabled = false;
+      calEls.btnSave.textContent = idleText || calEls.btnSave.dataset.originalText;
+      return;
+    }
+
+    calEls.btnSave.disabled = true;
+    calEls.btnSave.textContent = "Procesando…";
   }
 
   function setCalCancelVisible(isVisible) {
@@ -168,8 +187,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     if (calEls.ownerName) calEls.ownerName.value = "";
     if (calEls.contactPhone) calEls.contactPhone.value = "";
     if (calEls.investment) calEls.investment.value = "";
+    if (calEls.btnSave) calEls.btnSave.textContent = "Crear actividad";
     setCalCancelVisible(false);
-    setCalBusyUI(false);
   }
 
   function readCalForm() {
@@ -223,130 +242,164 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
   }
 
   async function loadCalActivities() {
-    if (!calEls.tbody) return;
-    calEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+    if (calBusy) return;
+    calBusy = true;
+    try {
+      if (calEls.tbody) {
+        calEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+      }
 
-    const { data, error } = await supabase
-      .from("calendar_activities")
-      .select("*")
-      .order("event_date", { ascending: true });
+      const { data, error } = await supabase
+        .from("calendar_activities")
+        .select("*")
+        .order("event_date", { ascending: true });
 
-    if (error) {
-      setMsg("calMsg", error.message, true);
-      calRows = [];
-      return renderCalTable();
+      if (error) {
+        setCalMsg(error.message, true);
+        calRows = [];
+        renderCalTable();
+        return;
+      }
+
+      calRows = Array.isArray(data) ? data : [];
+      renderCalTable();
+      setCalMsg("", false);
+    } finally {
+      calBusy = false;
     }
-
-    calRows = Array.isArray(data) ? data : [];
-    renderCalTable();
   }
 
-  function startEditCal(id) {
-    const row = calRows.find(x => safeText(x.id) === safeText(id));
-    if (!row) return;
-
+  function fillFormForEdit(row) {
     calSelectedId = row.id;
-    if (calEls.activity) calEls.activity.value = safeText(row.activity);
-    if (calEls.eventDate) calEls.eventDate.value = safeText(row.event_date);
-    if (calEls.ownerName) calEls.ownerName.value = safeText(row.owner_name);
-    if (calEls.contactPhone) calEls.contactPhone.value = safeText(row.contact_phone);
+    if (calEls.activity) calEls.activity.value = row.activity ?? "";
+    if (calEls.eventDate) calEls.eventDate.value = row.event_date ?? "";
+    if (calEls.ownerName) calEls.ownerName.value = row.owner_name ?? "";
+    if (calEls.contactPhone) calEls.contactPhone.value = row.contact_phone ?? "";
     if (calEls.investment) calEls.investment.value = row.investment ?? "";
 
+    if (calEls.btnSave) calEls.btnSave.textContent = "Guardar cambios";
     setCalCancelVisible(true);
-    setCalBusyUI(false);
+
+    setCalMsg("Editando actividad…", false);
   }
 
-  async function saveCal() {
+  calEls.btnCancel?.addEventListener("click", () => {
+    resetCalForm();
+    setCalMsg("", false);
+  });
+
+  calEls.btnSave?.addEventListener("click", async () => {
     if (calBusy) return;
-    if (!calEls.btnSave) return;
 
     const payload = readCalForm();
-    const validationError = validateCalPayload(payload);
-    if (validationError) return setMsg("calMsg", validationError, true);
-
-    // Importante: NO enviar created_by. Lo asigna el trigger.
-    const dbPayload = {
-      activity: payload.activity,
-      event_date: payload.event_date,
-      owner_name: payload.owner_name || null,
-      contact_phone: payload.contact_phone || null,
-      investment: payload.investment,
-    };
+    const err = validateCalPayload(payload);
+    if (err) {
+      setCalMsg(err, true);
+      return;
+    }
 
     calBusy = true;
-    setCalBusyUI(true);
-    setMsg("calMsg", "Procesando…", false);
+    setCalSaveLoading(true);
 
     try {
       if (!calSelectedId) {
+        // INSERT (SIN created_by; lo asigna el trigger)
         const { error } = await supabase
           .from("calendar_activities")
-          .insert(dbPayload);
-        if (error) return setMsg("calMsg", error.message, true);
-        setMsg("calMsg", "Actividad creada.", false);
-      } else {
-        const { error } = await supabase
-          .from("calendar_activities")
-          .update(dbPayload)
-          .eq("id", calSelectedId);
-        if (error) return setMsg("calMsg", error.message, true);
-        setMsg("calMsg", "Actividad actualizada.", false);
+          .insert({
+            activity: payload.activity,
+            event_date: payload.event_date,
+            owner_name: payload.owner_name,
+            contact_phone: payload.contact_phone,
+            investment: payload.investment,
+          });
+
+        if (error) {
+          setCalMsg(error.message, true);
+          return;
+        }
+
+        setCalMsg("Actividad creada.", false);
+        resetCalForm();
+        await loadCalActivities();
+        return;
       }
 
+      // UPDATE
+      const { error } = await supabase
+        .from("calendar_activities")
+        .update({
+          activity: payload.activity,
+          event_date: payload.event_date,
+          owner_name: payload.owner_name,
+          contact_phone: payload.contact_phone,
+          investment: payload.investment,
+        })
+        .eq("id", calSelectedId);
+
+      if (error) {
+        setCalMsg(error.message, true);
+        return;
+      }
+
+      setCalMsg("Cambios guardados.", false);
       resetCalForm();
       await loadCalActivities();
     } finally {
+      setCalSaveLoading(false, calSelectedId ? "Guardar cambios" : "Crear actividad");
       calBusy = false;
-      setCalBusyUI(false);
     }
-  }
-
-  async function deleteCal(id) {
-    if (calBusy) return;
-    const ok = window.confirm("¿Eliminar esta actividad? Esta acción no se puede deshacer.");
-    if (!ok) return;
-
-    calBusy = true;
-    setCalBusyUI(true);
-    setMsg("calMsg", "Procesando…", false);
-
-    try {
-      const { error } = await supabase
-        .from("calendar_activities")
-        .delete()
-        .eq("id", id);
-      if (error) return setMsg("calMsg", error.message, true);
-
-      // Si se elimina el mismo que se estaba editando, resetea
-      if (safeText(calSelectedId) === safeText(id)) resetCalForm();
-
-      setMsg("calMsg", "Actividad eliminada.", false);
-      await loadCalActivities();
-    } finally {
-      calBusy = false;
-      setCalBusyUI(false);
-    }
-  }
-
-  calEls.btnSave?.addEventListener("click", saveCal);
-  calEls.btnCancel?.addEventListener("click", () => {
-    if (calBusy) return;
-    resetCalForm();
-    setMsg("calMsg", "Edición cancelada.", false);
   });
 
-  calEls.tbody?.addEventListener("click", (e) => {
-    const btn = e.target?.closest?.("button[data-action]");
+  // Delegación de acciones (Editar/Eliminar)
+  calEls.tbody?.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("button");
     if (!btn) return;
+
     const action = btn.getAttribute("data-action");
     const id = btn.getAttribute("data-id");
-    if (!id) return;
+    if (!action || !id) return;
 
-    if (action === "edit") startEditCal(id);
-    if (action === "delete") deleteCal(id);
+    const row = calRows.find(x => String(x.id) === String(id));
+    if (!row) return;
+
+    if (action === "edit") {
+      fillFormForEdit(row);
+      return;
+    }
+
+    if (action === "delete") {
+      if (calBusy) return;
+      const ok = window.confirm("¿Eliminar esta actividad? Esta acción no se puede deshacer.");
+      if (!ok) return;
+
+      calBusy = true;
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Procesando…";
+
+      try {
+        const { error } = await supabase
+          .from("calendar_activities")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          setCalMsg(error.message, true);
+          return;
+        }
+
+        setCalMsg("Actividad eliminada.", false);
+        if (String(calSelectedId) === String(id)) resetCalForm();
+        await loadCalActivities();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        calBusy = false;
+      }
+    }
   });
 
-  // Carga inicial (solo cuando el admin entra a la sección calendario)
-  // Igual lo cargamos una vez al inicio para que esté listo.
-  await loadCalActivities();
+  // Carga inicial del menu
+  showSection("home");
 })();
