@@ -99,6 +99,11 @@ btnBack?.addEventListener('click', () => {
       setActiveNav(view);
       setCrumb(viewLabel(view));
       closeSidebarOnMobile();
+
+      if (view === 'calendario') {
+        // Carga/refresh del calendario al entrar en la vista
+        loadCalendar();
+      }
     };
 
     const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
@@ -312,6 +317,243 @@ btnBack?.addEventListener('click', () => {
         goBack();
         return;
       }
+    });
+
+
+    // ---- Calendario (tabla tipo “Excel”) - Supabase calendar_activities
+    const calendarContainer = qs('#calendarContainer');
+    const calendarStatus = qs('#calendarStatus');
+    const btnCalNew = qs('#btnCalNew');
+
+    const normalizeProfile = (p) => {
+      if (!p) return null;
+      if (p.data && typeof p.data === 'object') return p.data;
+      if (p.profile && typeof p.profile === 'object') return p.profile;
+      return p;
+    };
+
+    const getRole = async () => {
+      if (!cachedProfile) {
+        try {
+          cachedProfile = normalizeProfile(await getMyProfile(supabase));
+        } catch {
+          cachedProfile = null;
+        }
+      }
+      return (cachedProfile && cachedProfile.role) ? String(cachedProfile.role) : 'user';
+    };
+
+    const escapeHtml = (s) => {
+      const str = (s == null) ? '' : String(s);
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    };
+
+    const fmtInvestment = (v) => {
+      if (v == null || v === '') return '';
+      const n = Number(v);
+      if (Number.isNaN(n)) return String(v);
+      return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const readActivityFromPrompts = (seed = {}) => {
+      const activity = prompt('Actividad:', seed.activity || '');
+      if (activity === null) return null;
+
+      const event_date = prompt('Fecha (YYYY-MM-DD):', seed.event_date || '');
+      if (event_date === null) return null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date.trim())) {
+        alert('Fecha inválida. Usa el formato YYYY-MM-DD.');
+        return null;
+      }
+
+      const owner_name = prompt('Encargado:', seed.owner_name || '');
+      if (owner_name === null) return null;
+
+      const contact_phone = prompt('#Contacto:', seed.contact_phone || '');
+      if (contact_phone === null) return null;
+
+      const invRaw = prompt('Inversión (número):', (seed.investment ?? '') === '' ? '' : String(seed.investment));
+      if (invRaw === null) return null;
+      const investment = invRaw.trim() === '' ? null : Number(invRaw);
+      if (investment !== null && Number.isNaN(investment)) {
+        alert('Inversión inválida. Debe ser un número (o dejar vacío).');
+        return null;
+      }
+
+      return {
+        activity: activity.trim(),
+        event_date: event_date.trim(),
+        owner_name: owner_name.trim(),
+        contact_phone: contact_phone.trim(),
+        investment,
+      };
+    };
+
+    const renderCalendarTable = (rows, isAdmin) => {
+      if (!calendarContainer) return;
+
+      const headCells = [
+        '<th>Actividad</th>',
+        '<th>Fecha</th>',
+        '<th>Encargado</th>',
+        '<th>#Contacto</th>',
+        '<th>Inversión</th>',
+      ];
+      if (isAdmin) headCells.append('<th class="cal-actions">Acciones</th>');
+
+      const body = (rows || []).map(r => {
+        const cells = [
+          `<td>${escapeHtml(r.activity)}</td>`,
+          `<td>${escapeHtml(r.event_date)}</td>`,
+          `<td>${escapeHtml(r.owner_name)}</td>`,
+          `<td>${escapeHtml(r.contact_phone)}</td>`,
+          `<td>${escapeHtml(fmtInvestment(r.investment))}</td>`,
+        ];
+        if (isAdmin) {
+          cells.append(
+            `<td class="cal-actions">` +
+              `<button class="pill" data-cal-action="edit" data-id="${escapeHtml(r.id)}" type="button">Editar</button> ` +
+              `<button class="pill danger" data-cal-action="delete" data-id="${escapeHtml(r.id)}" type="button">Eliminar</button>` +
+            `</td>`
+          );
+        }
+        return `<tr>${cells.join('')}</tr>`;
+      }).join('');
+
+      calendarContainer.innerHTML = `
+        <table class="table cal-table" id="calendarTable">
+          <thead><tr>${headCells.join('')}</tr></thead>
+          <tbody id="calendarBody">${body || ''}</tbody>
+        </table>
+      `;
+    };
+
+    const loadCalendar = async () => {
+      if (!calendarContainer) return;
+
+      setStatus(calendarStatus, 'Cargando…');
+
+      const role = await getRole();
+      const isAdmin = role === 'admin';
+
+      if (btnCalNew) btnCalNew.style.display = isAdmin ? '' : 'none';
+
+      const { data, error } = await supabase
+        .from('calendar_activities')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (error) {
+        setStatus(calendarStatus, 'Error cargando calendario.');
+        calendarContainer.textContent = 'No se pudo cargar.';
+        return;
+      }
+
+      renderCalendarTable(data || [], isAdmin);
+      setStatus(calendarStatus, `Registros: ${(data || []).length}`);
+    };
+
+    const createCalendarActivity = async () => {
+      const role = await getRole();
+      if (role !== 'admin') return;
+
+      const payload = readActivityFromPrompts({});
+      if (!payload) return;
+
+      setStatus(calendarStatus, 'Guardando…');
+
+      const { error } = await supabase
+        .from('calendar_activities')
+        .insert({ ...payload, created_by: user.id });
+
+      if (error) {
+        setStatus(calendarStatus, 'Error al guardar.');
+        alert('No se pudo crear la actividad.');
+        return;
+      }
+
+      await loadCalendar();
+      setStatus(calendarStatus, 'Actividad creada.');
+    };
+
+    const editCalendarActivity = async (id) => {
+      const role = await getRole();
+      if (role !== 'admin') return;
+
+      const { data, error } = await supabase
+        .from('calendar_activities')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !data) {
+        alert('No se pudo cargar la actividad.');
+        return;
+      }
+
+      const payload = readActivityFromPrompts(data);
+      if (!payload) return;
+
+      setStatus(calendarStatus, 'Actualizando…');
+
+      const upd = await supabase
+        .from('calendar_activities')
+        .update(payload)
+        .eq('id', id);
+
+      if (upd.error) {
+        setStatus(calendarStatus, 'Error al actualizar.');
+        alert('No se pudo actualizar la actividad.');
+        return;
+      }
+
+      await loadCalendar();
+      setStatus(calendarStatus, 'Actividad actualizada.');
+    };
+
+    const deleteCalendarActivity = async (id) => {
+      const role = await getRole();
+      if (role !== 'admin') return;
+
+      const ok = confirm('¿Eliminar esta actividad?');
+      if (!ok) return;
+
+      setStatus(calendarStatus, 'Eliminando…');
+
+      const del = await supabase
+        .from('calendar_activities')
+        .delete()
+        .eq('id', id);
+
+      if (del.error) {
+        setStatus(calendarStatus, 'Error al eliminar.');
+        alert('No se pudo eliminar la actividad.');
+        return;
+      }
+
+      await loadCalendar();
+      setStatus(calendarStatus, 'Actividad eliminada.');
+    };
+
+    btnCalNew?.addEventListener('click', (e) => {
+      e.preventDefault();
+      createCalendarActivity();
+    });
+
+    calendarContainer?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-cal-action]');
+      if (!btn) return;
+      e.preventDefault();
+      const action = btn.getAttribute('data-cal-action');
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+      if (action === 'edit') editCalendarActivity(id);
+      if (action === 'delete') deleteCalendarActivity(id);
     });
 
 
