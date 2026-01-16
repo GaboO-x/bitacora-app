@@ -407,10 +407,17 @@
 </section>
 <section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Calendario</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
 
-<p class="muted">Vista pendiente. (Solo estructura.)</p>
-<div class="placeholder">
-<div class="placeholder__title">Calendario</div>
-<div class="placeholder__body" id="calendarContainer">Contenedor listo (#calendarContainer).</div>
+<div class="panel" id="calendarPanel">
+  <div class="sheet-header">
+    <div class="sheet-title">Actividades</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnCalNew" type="button">Nueva actividad</button>
+    </div>
+  </div>
+
+  <div class="muted tiny" id="calendarStatus"></div>
+
+  <div class="table-wrap" id="calendarContainer">Cargando…</div>
 </div>
 </section>
 <section class="view" data-view-section="anuncios" id="view-anuncios"><div class="view__header"><h1>Anuncios</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
