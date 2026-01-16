@@ -45,6 +45,10 @@ btnBack?.addEventListener('click', () => {
       dcDirty: false,
       dcRowCount: 2,
       history: [],
+      notesOpenSheet: null,
+      takersDirty: false,
+      cultosDirty: false,
+      lideresDirty: false,
     };
 
     // ---- Sidebar toggle (móvil / escritorio)
@@ -97,16 +101,165 @@ btnBack?.addEventListener('click', () => {
       closeSidebarOnMobile();
     };
 
+    const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
+
+    const readDrafts = () => {
+      try { return JSON.parse(localStorage.getItem(NOTES_DRAFT_KEY) || '{}'); }
+      catch { return {}; }
+    };
+
+    const writeDrafts = (obj) => {
+      try { localStorage.setItem(NOTES_DRAFT_KEY, JSON.stringify(obj)); } catch {}
+    };
+
+    const getWeekDraft = (week) => {
+      const all = readDrafts();
+      return all[String(week)] || {};
+    };
+
+    const setWeekDraft = (week, patch) => {
+      const all = readDrafts();
+      const k = String(week);
+      all[k] = { ...(all[k] || {}), ...(patch || {}) };
+      writeDrafts(all);
+    };
+
+    const setStatus = (statusEl, msg) => {
+      if (!statusEl) return;
+      statusEl.textContent = msg || '';
+    };
+
+    const nowLabel = () => {
+      try { return new Date().toLocaleString(); } catch { return ''; }
+    };
+
+    const collectDcDraft = () => {
+      if (!notesSheetScreen) return null;
+      const blocks = qsa('.dc-item', notesSheetScreen).map(item => {
+        const inputs = qsa('input', item);
+        const t = inputs[0].value || '';
+        const r = inputs[1].value || '';
+        return { t, r };
+      });
+
+      const asistieron = qs('#dcAsistieron')?.value || '';
+      const faltaron = qs('#dcFaltaron')?.value || '';
+      const nuevos = qs('#dcNuevos')?.value || '';
+
+      const follow = qsa('tr', dcFollowBody || document).map(tr => {
+        const name = qs('td:nth-child(1) input', tr)?.value || '';
+        const enc = qs('td:nth-child(2) input', tr)?.value || '';
+        const yes = qs('input[type="radio"][value="si"]', tr);
+        const no = qs('input[type="radio"][value="no"]', tr);
+        const just = (yes && yes.checked) ? 'si' : ((no && no.checked) ? 'no' : '');
+        const date = qs('td:nth-child(4) input[type="date"]', tr)?.value || '';
+        return { name, enc, just, date };
+      });
+
+      return {
+        date: dcDate?.value || '',
+        blocks,
+        asistencia: { asistieron, faltaron, nuevos },
+        follow,
+        notes: dcNotes?.value || '',
+      };
+    };
+
+    const applyDcDraft = (draft) => {
+      if (!draft || !notesSheetScreen) return;
+      if (dcDate && draft.date) dcDate.value = draft.date;
+      if (dcNotes && typeof draft.notes === 'string') dcNotes.value = draft.notes;
+
+      const a = draft.asistencia || {};
+      const dcAsistieron = qs('#dcAsistieron');
+      const dcFaltaron = qs('#dcFaltaron');
+      const dcNuevos = qs('#dcNuevos');
+      if (dcAsistieron && a.asistieron != null) dcAsistieron.value = a.asistieron;
+      if (dcFaltaron && a.faltaron != null) dcFaltaron.value = a.faltaron;
+      if (dcNuevos && a.nuevos != null) dcNuevos.value = a.nuevos;
+
+      const items = qsa('.dc-item', notesSheetScreen);
+      (draft.blocks || []).forEach((b, i) => {
+        const item = items[i];
+        if (!item) return;
+        const inputs = qsa('input', item);
+        if (inputs[0] && b.t != null) inputs[0].value = b.t;
+        if (inputs[1] && b.r != null) inputs[1].value = b.r;
+      });
+
+      if (dcFollowBody && Array.isArray(draft.follow)) {
+        const rows = qsa('tr', dcFollowBody);
+        draft.follow.forEach((row, i) => {
+          const tr = rows[i];
+          if (!tr) return;
+          const name = qs('td:nth-child(1) input', tr);
+          const enc = qs('td:nth-child(2) input', tr);
+          const yes = qs('input[type="radio"][value="si"]', tr);
+          const no = qs('input[type="radio"][value="no"]', tr);
+          const date = qs('td:nth-child(4) input[type="date"]', tr);
+          if (name && row.name != null) name.value = row.name;
+          if (enc && row.enc != null) enc.value = row.enc;
+          if (yes && no) {
+            yes.checked = row.just == 'si';
+            no.checked = row.just == 'no';
+          }
+          if (date && row.date != null) date.value = row.date;
+        });
+      }
+    };
+
+    const collectRteDraft = (temaEl, dateEl, editorEl) => ({
+      tema: temaEl?.value || '',
+      date: dateEl?.value || '',
+      html: editorEl?.innerHTML || '',
+    });
+
+    const applyRteDraft = (draft, temaEl, dateEl, editorEl) => {
+      if (!draft) return;
+      if (temaEl && draft.tema != null) temaEl.value = draft.tema;
+      if (dateEl && draft.date != null) dateEl.value = draft.date;
+      if (editorEl && typeof draft.html === 'string' && draft.html.length) editorEl.innerHTML = draft.html;
+    };
+
+    const autosaveNotesIfNeeded = () => {
+      if (!state.selectedWeek) return;
+
+      if (state.notesOpenSheet === 'dc' && state.dcDirty) {
+        const d = collectDcDraft();
+        if (d) setWeekDraft(state.selectedWeek, { dc: d });
+        state.dcDirty = false;
+        setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        return;
+      }
+
+      if (state.notesOpenSheet === 'takers' && state.takersDirty) {
+        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
+        state.takersDirty = false;
+        setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        return;
+      }
+
+      if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
+        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
+        state.cultosDirty = false;
+        setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        return;
+      }
+
+      if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
+        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
+        state.lideresDirty = false;
+        setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        return;
+      }
+    };
+
     const confirmLeaveDcSheet = () => {
-      if (!state.dcOpen || !state.dcDirty) return true;
-      const ok = confirm('Tienes cambios sin guardar. (Auto-guardado pendiente de Supabase) ¿Salir de la hoja?');
-      if (!ok) return false;
-      // Placeholder de auto-guardado
-      alert('Auto-guardado: placeholder (se integrará con Supabase).');
-      state.dcDirty = false;
-      if (dcStatus) dcStatus.textContent = '';
+      // Ahora: auto-guardado implícito (sin confirmación)
+      autosaveNotesIfNeeded();
       return true;
     };
+
 
     const navigate = (view, opts = {}) => {
       if (!confirmLeaveDcSheet()) return;
@@ -192,14 +345,12 @@ btnBack?.addEventListener('click', () => {
     const btnTakersBack = qs('#btnTakersBack');
     const btnCultosBack = qs('#btnCultosBack');
     const btnLideresBack = qs('#btnLideresBack');
-    const btnTakersSave = qs('#btnTakersSave');
-    const btnCultosSave = qs('#btnCultosSave');
-    const btnLideresSave = qs('#btnLideresSave');
+    const btnTakersShare = qs('#btnTakersShare');
+    const btnCultosShare = qs('#btnCultosShare');
+    const btnLideresShare = qs('#btnLideresShare');
     const dcSheetTitle = qs('#dcSheetTitle');
     const dcDate = qs('#dcDate');
     const btnDcBack = qs('#btnDcBack');
-    const btnDcSave = qs('#btnDcSave');
-    const btnDcShare = qs('#btnDcShare');
     const btnDcRowAdd = qs('#btnDcRowAdd');
     const btnDcRowRemove = qs('#btnDcRowRemove');
     const dcFollowBody = qs('#dcFollowBody');
@@ -229,6 +380,7 @@ btnBack?.addEventListener('click', () => {
       notesWeekScreen.classList.toggle('is-hidden', !visible);
       if (notesSheetScreen) notesSheetScreen.classList.add('is-hidden');
       state.dcOpen = false;
+      state.notesOpenSheet = null;
 	      // Si el elemento fue fijado (p.ej. convertido a botón "Inicio"), no sobrescribimos su texto.
 	      if (notesHint && !notesHint.dataset.fixed) {
 	        notesHint.textContent = visible ? 'Semana seleccionada: elige una actividad.' : 'Selecciona la semana.';
@@ -240,6 +392,7 @@ btnBack?.addEventListener('click', () => {
       notesSheetTakers?.classList.add('is-hidden');
       notesSheetCultos?.classList.add('is-hidden');
       notesSheetLideres?.classList.add('is-hidden');
+      state.notesOpenSheet = null;
     };
 
     const showNoteSheet = (sheetEl) => {
@@ -248,6 +401,13 @@ btnBack?.addEventListener('click', () => {
       notesWeekScreen?.classList.add('is-hidden');
       hideAllNoteSheets();
       sheetEl.classList.remove('is-hidden');
+
+      // tracking de hoja abierta
+      if (sheetEl === notesSheetScreen) state.notesOpenSheet = 'dc';
+      else if (sheetEl === notesSheetTakers) state.notesOpenSheet = 'takers';
+      else if (sheetEl === notesSheetCultos) state.notesOpenSheet = 'cultos';
+      else if (sheetEl === notesSheetLideres) state.notesOpenSheet = 'lideres';
+      else state.notesOpenSheet = null;
     };
 
     const setSheetVisible = (visible) => {
@@ -340,8 +500,19 @@ btnBack?.addEventListener('click', () => {
     };
 
     // Marcar cambios (placeholder de auto-guardado)
+    const setTakersDirty = (dirty = true) => { state.takersDirty = dirty; if (takersStatus) takersStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
+    const setCultosDirty = (dirty = true) => { state.cultosDirty = dirty; if (cultosStatus) cultosStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
+    const setLideresDirty = (dirty = true) => { state.lideresDirty = dirty; if (lideresStatus) lideresStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
+
     notesSheetScreen?.addEventListener('input', () => setDcDirty(true));
     notesSheetScreen?.addEventListener('change', () => setDcDirty(true));
+
+    notesSheetTakers?.addEventListener('input', () => setTakersDirty(true));
+    notesSheetTakers?.addEventListener('change', () => setTakersDirty(true));
+    notesSheetCultos?.addEventListener('input', () => setCultosDirty(true));
+    notesSheetCultos?.addEventListener('change', () => setCultosDirty(true));
+    notesSheetLideres?.addEventListener('input', () => setLideresDirty(true));
+    notesSheetLideres?.addEventListener('change', () => setLideresDirty(true));
 
     const initDcDefaults = () => {
       const t = todayISO();
@@ -401,12 +572,18 @@ btnBack?.addEventListener('click', () => {
         return;
       }
       if (dcSheetTitle) dcSheetTitle.textContent = `Dinámica Celular • Semana ${state.selectedWeek}`;
-      // Reset visual básico
       if (dcStatus) dcStatus.textContent = '';
+
+      // Cargar borrador local (si existe)
+      const draft = getWeekDraft(state.selectedWeek).dc;
       setSheetVisible(true);
-      // Preparar defaults
-      if (dcDate) dcDate.value = todayISO();
-      initDcDefaults();
+      if (draft) {
+        applyDcDraft(draft);
+      } else {
+        // Defaults solo si NO hay borrador
+        if (dcDate && !dcDate.value) dcDate.value = todayISO();
+        initDcDefaults();
+      }
       rebuildJustNames();
     };
 
@@ -416,9 +593,9 @@ btnBack?.addEventListener('click', () => {
     });
 
     // Back/Guardar para hojas de Semana (Takers/Cultos/Líderes)
-    qs('#btnTakersBack')?.addEventListener('click', () => { hideAllNoteSheets(); setWeekScreenVisible(true); });
-    qs('#btnCultosBack')?.addEventListener('click', () => { hideAllNoteSheets(); setWeekScreenVisible(true); });
-    qs('#btnLideresBack')?.addEventListener('click', () => { hideAllNoteSheets(); setWeekScreenVisible(true); });
+    qs('#btnTakersBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
+    qs('#btnCultosBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
+    qs('#btnLideresBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
 
     const markSaved = (statusEl) => {
       if (!statusEl) return;
@@ -426,25 +603,13 @@ btnBack?.addEventListener('click', () => {
       statusEl.textContent = `Guardado local: ${t} (pendiente Supabase)`;
     };
 
-    qs('#btnTakersSave')?.addEventListener('click', () => markSaved(takersStatus));
-    qs('#btnCultosSave')?.addEventListener('click', () => markSaved(cultosStatus));
-    qs('#btnLideresSave')?.addEventListener('click', () => markSaved(lideresStatus));
-
-
-    btnDcSave?.addEventListener('click', () => {
-      alert('Guardar: placeholder. Aquí luego se insertará/actualizará en Supabase.');
-      // No marcamos como guardado porque aún no hay persistencia
-    });
-
-    btnDcShare?.addEventListener('click', () => {
-      alert('Compartir: placeholder.');
-    });
-
     const openTakersSheet = () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
       takersStatus && (takersStatus.textContent = '');
       setDateIfEmpty(takersDate);
+      const draft = getWeekDraft(state.selectedWeek).takers;
+      if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
       showNoteSheet(notesSheetTakers);
     };
 
@@ -453,6 +618,8 @@ btnBack?.addEventListener('click', () => {
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
       cultosStatus && (cultosStatus.textContent = '');
       setDateIfEmpty(cultosDate);
+      const draft = getWeekDraft(state.selectedWeek).cultos;
+      if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
       showNoteSheet(notesSheetCultos);
     };
 
@@ -461,10 +628,54 @@ btnBack?.addEventListener('click', () => {
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
       lideresStatus && (lideresStatus.textContent = '');
       setDateIfEmpty(lideresDate);
+      const draft = getWeekDraft(state.selectedWeek).lideres;
+      if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
       showNoteSheet(notesSheetLideres);
     };
 
-    btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
+    
+
+    const shareText = async (text) => {
+      const payload = { text };
+      try {
+        if (navigator.share) {
+          await navigator.share(payload);
+          return;
+        }
+      } catch {}
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Contenido copiado al portapapeles.');
+      } catch {
+        alert('No se pudo compartir/copiar automáticamente en este navegador.');
+      }
+    };
+
+    const buildShare = (title, temaEl, dateEl, editorEl) => {
+      const week = state.selectedWeek ? `Semana ${state.selectedWeek}` : '';
+      const tema = temaEl?.value ? `Tema: ${temaEl.value}` : '';
+      const fecha = dateEl?.value ? `Fecha: ${dateEl.value}` : '';
+      const body = editorEl ? (editorEl.innerText || '').trim() : '';
+      return [title, week, tema, fecha, '', body].filter(Boolean).join('
+');
+    };
+
+    btnTakersShare?.addEventListener('click', () => {
+      const text = buildShare('Takers', takersTema, takersDate, takersNotes);
+      shareText(text);
+    });
+
+    btnCultosShare?.addEventListener('click', () => {
+      const text = buildShare('Cultos', cultosTema, cultosDate, cultosNotes);
+      shareText(text);
+    });
+
+    btnLideresShare?.addEventListener('click', () => {
+      const text = buildShare('Reunión de Líderes/Ministerios', lideresTema, lideresDate, lideresNotes);
+      shareText(text);
+    });
+
+btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     btnNoteTakers?.addEventListener('click', openTakersSheet);
     btnNoteCultos?.addEventListener('click', openCultosSheet);
       btnNoteLideres?.addEventListener('click', openLideresSheet);
