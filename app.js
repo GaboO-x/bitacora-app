@@ -3,8 +3,7 @@ import { requireSession, getMyProfile } from "./shared.js";
 (async () => {
   const { supabase, session } = await requireSession();
   if (!supabase || !session) {
-    // Usa replace para evitar bucles con el botón Atrás.
-    window.location.replace("./index.html?next=" + encodeURIComponent("./app.html"));
+    window.location.href = "./index.html";
     return;
   }
 
@@ -17,11 +16,9 @@ import { requireSession, getMyProfile } from "./shared.js";
     const ok = confirm('Seguro que deseas salir?');
     if (!ok) return;
     try {
-      // Local scope is enough for a browser app and avoids edge cases with stale cached session.
-      await supabase.auth.signOut({ scope: 'local' });
+      await supabase.auth.signOut();
     } catch {}
-    // Marca explícita para que index NO auto-redirija por sesión (y evita volver a app con Atrás).
-    window.location.replace("./index.html?loggedout=1");
+    window.location.href = "./index.html";
   };
 
   const btnLogoutTop = document.querySelector('#btnLogout');
@@ -52,6 +49,15 @@ btnBack?.addEventListener('click', () => {
       takersDirty: false,
       cultosDirty: false,
       lideresDirty: false,
+
+      // Revisión (Leader)
+      reviewUserId: null,
+      reviewUserName: null,
+      reviewWeek: null,
+      reviewWeeksDone: {},
+      reviewWeeksReviewed: {},
+      reviewNotesBySheet: {},
+      reviewPrimaryNoteId: null,
     };
 
     // ---- Sidebar toggle (móvil / escritorio)
@@ -115,6 +121,10 @@ btnBack?.addEventListener('click', () => {
       if (view === 'material') {
         loadMaterials();
       }
+
+      if (view === 'revision') {
+        initReviewView();
+      }
     };
 
     const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
@@ -138,49 +148,6 @@ btnBack?.addEventListener('click', () => {
       const k = String(week);
       all[k] = { ...(all[k] || {}), ...(patch || {}) };
       writeDrafts(all);
-    };
-
-
-    // --- Supabase persistence for Notas (notes table)
-    // Keeps local drafts as fallback, but the source of truth becomes Supabase.
-    const NOTES_DB_SHEETS = new Set(['dc','takers','cultos','lideres']);
-
-    const getMyUserId = () => {
-      try { return user && user.id ? user.id : null; } catch { return null; }
-    };
-
-    const loadNoteRow = async (week, sheet) => {
-      const uid = getMyUserId();
-      if (!uid || !week || !sheet || !NOTES_DB_SHEETS.has(sheet)) return null;
-      const { data, error } = await supabase
-        .from('notes')
-        .select('id, user_id, week, sheet, week_done, data, updated_at')
-        .eq('user_id', uid)
-        .eq('week', week)
-        .eq('sheet', sheet)
-        .maybeSingle();
-      if (error) return null;
-      return data || null;
-    };
-
-    const saveNoteRow = async (week, sheet, payloadData) => {
-      const uid = getMyUserId();
-      if (!uid || !week || !sheet || !NOTES_DB_SHEETS.has(sheet)) return { ok: false };
-
-      const row = {
-        user_id: uid,
-        week,
-        sheet,
-        // semana completada se mantiene en localStorage por ahora
-        week_done: false,
-        data: payloadData || {},
-      };
-
-      const { error } = await supabase
-        .from('notes')
-        .upsert(row, { onConflict: 'user_id,week,sheet' });
-
-      return { ok: !error, error };
     };
 
     const setStatus = (statusEl, msg) => {
@@ -286,46 +253,27 @@ btnBack?.addEventListener('click', () => {
       if (state.notesOpenSheet === 'dc' && state.dcDirty) {
         const d = collectDcDraft();
         if (d) setWeekDraft(state.selectedWeek, { dc: d });
-          // Persist to Supabase (fire-and-forget)
-          if (d) saveNoteRow(state.selectedWeek, 'dc', d).then(r => {
-            if (r && r.ok) setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
-          }).catch(() => {});
         state.dcDirty = false;
         setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'takers' && state.takersDirty) {
-        const payload = collectRteDraft(takersTema, takersDate, takersNotes);
-          setWeekDraft(state.selectedWeek, { takers: payload });
-          // Persist to Supabase (fire-and-forget)
-          saveNoteRow(state.selectedWeek, 'takers', payload).then(r => {
-            if (r && r.ok) setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
-          }).catch(() => {});
+        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
         state.takersDirty = false;
         setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
-        const payload = collectRteDraft(cultosTema, cultosDate, cultosNotes);
-          setWeekDraft(state.selectedWeek, { cultos: payload });
-          // Persist to Supabase (fire-and-forget)
-          saveNoteRow(state.selectedWeek, 'cultos', payload).then(r => {
-            if (r && r.ok) setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
-          }).catch(() => {});
+        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
         state.cultosDirty = false;
         setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
-        const payload = collectRteDraft(lideresTema, lideresDate, lideresNotes);
-          setWeekDraft(state.selectedWeek, { lideres: payload });
-          // Persist to Supabase (fire-and-forget)
-          saveNoteRow(state.selectedWeek, 'lideres', payload).then(r => {
-            if (r && r.ok) setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
-          }).catch(() => {});
+        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
         state.lideresDirty = false;
         setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
@@ -360,6 +308,7 @@ btnBack?.addEventListener('click', () => {
       switch(view){
         case 'home': return 'Inicio';
         case 'notas': return 'Notas';
+        case 'revision': return 'Revisión de Notas';
         case 'calendario': return 'Calendario';
         case 'anuncios': return 'Anuncios';
         case 'material': return 'Material de apoyo';
@@ -416,16 +365,430 @@ btnBack?.addEventListener('click', () => {
       return (cachedProfile && cachedProfile.role) ? String(cachedProfile.role) : 'user';
     };
 
-    const escapeHtml = (s) => {
-      const str = (s == null) ? '' : String(s);
-      return str
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+    // ---- Revisión de Notas (solo Leader)
+    const navReviewNotes = qs('#navReviewNotes');
+
+    const reviewUserSelect = qs('#reviewUserSelect');
+    const reviewUserStatus = qs('#reviewUserStatus');
+    const reviewWeeksGrid = qs('#reviewWeeksGrid');
+    const reviewWeekPicker = qs('#reviewWeekPicker');
+    const reviewWeekScreen = qs('#reviewWeekScreen');
+    const reviewWeekTitle = qs('#reviewWeekTitle');
+    const btnReviewBackToWeeks = qs('#btnReviewBackToWeeks');
+    const chkReviewWeekDone = qs('#chkReviewWeekDone');
+    const chkWeekReviewed = qs('#chkWeekReviewed');
+    const reviewMeta = qs('#reviewMeta');
+
+    const btnReviewDinamica = qs('#btnReviewDinamica');
+    const btnReviewTakers = qs('#btnReviewTakers');
+    const btnReviewCultos = qs('#btnReviewCultos');
+    const btnReviewLideres = qs('#btnReviewLideres');
+
+    const reviewSheetScreen = qs('#reviewSheetScreen');
+    const reviewSheetTitle = qs('#reviewSheetTitle');
+    const btnReviewSheetBack = qs('#btnReviewSheetBack');
+    const reviewSheetStatus = qs('#reviewSheetStatus');
+    const reviewSheetContent = qs('#reviewSheetContent');
+
+    const reviewComment = qs('#reviewComment');
+    const btnAddReviewComment = qs('#btnAddReviewComment');
+    const reviewCommentStatus = qs('#reviewCommentStatus');
+    const reviewCommentsList = qs('#reviewCommentsList');
+
+    const reviewState = {
+      userId: null,
+      userName: null,
+      week: null,
+      userWeeksDone: {},
+      weeksReviewed: {},
+      notesBySheet: { dc: null, takers: null, cultos: null, lideres: null },
+      noteIdForFeedback: null,
     };
 
+    const setReviewStatus = (msg) => setStatus(reviewUserStatus, msg);
+
+    const setReviewMeta = (msg) => setStatus(reviewMeta, msg);
+
+    const setReviewCommentStatus = (msg) => setStatus(reviewCommentStatus, msg);
+
+    const resetReviewWeekUI = () => {
+      reviewWeekScreen?.classList.add('is-hidden');
+      reviewWeekPicker?.classList.remove('is-hidden');
+      if (reviewSheetScreen) reviewSheetScreen.classList.add('is-hidden');
+      if (reviewSheetContent) reviewSheetContent.textContent = '';
+      if (reviewSheetTitle) reviewSheetTitle.textContent = 'Hoja';
+      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
+      if (chkReviewWeekDone) chkReviewWeekDone.checked = false;
+      if (chkWeekReviewed) chkWeekReviewed.checked = false;
+      if (reviewCommentsList) reviewCommentsList.textContent = 'Selecciona una semana para ver el historial.';
+      if (reviewComment) reviewComment.value = '';
+      setReviewMeta('');
+      reviewState.week = null;
+      reviewState.notesBySheet = { dc: null, takers: null, cultos: null, lideres: null };
+      reviewState.noteIdForFeedback = null;
+    };
+
+    const populateReviewWeeks = () => {
+      if (!reviewWeeksGrid) return;
+      reviewWeeksGrid.innerHTML = '';
+      for (let i = 1; i <= 52; i++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'week';
+        b.textContent = `Sem ${i}`;
+        b.dataset.week = String(i);
+        b.addEventListener('click', () => selectReviewWeek(i));
+        reviewWeeksGrid.appendChild(b);
+      }
+    };
+
+    const paintReviewWeekTiles = () => {
+      if (!reviewWeeksGrid) return;
+      const done = reviewState.userWeeksDone || {};
+      const reviewed = reviewState.weeksReviewed || {};
+      qsa('.week', reviewWeeksGrid).forEach(btn => {
+        const w = Number(btn.dataset.week || '0');
+        btn.classList.toggle('is-done', !!done[String(w)]);
+        // Sin cambios visuales extra: guardamos el estado en atributo
+        if (reviewed[String(w)] != null) btn.dataset.reviewed = reviewed[String(w)] ? '1' : '0';
+        else delete btn.dataset.reviewed;
+      });
+    };
+
+    const loadReviewUsers = async () => {
+      if (!reviewUserSelect) return;
+      setReviewStatus('Cargando usuarios…');
+      reviewUserSelect.innerHTML = '';
+
+      // 1) Obtener squads del leader
+      const ls = await supabase
+        .from('leader_squads')
+        .select('squad_code')
+        .eq('leader_id', user.id);
+
+      if (ls.error) {
+        setReviewStatus('No se pudieron cargar tus squads (permisos).');
+        return;
+      }
+
+      const squadCodes = Array.from(new Set((ls.data || []).map(r => r.squad_code).filter(Boolean)));
+      if (!squadCodes.length) {
+        setReviewStatus('No tienes squads asignados.');
+        return;
+      }
+
+      // 2) Usuarios en esos squads
+      const us = await supabase
+        .from('user_squads')
+        .select('user_id')
+        .in('squad_code', squadCodes);
+
+      if (us.error) {
+        setReviewStatus('No se pudieron cargar usuarios (permisos).');
+        return;
+      }
+
+      const userIds = Array.from(new Set((us.data || []).map(r => r.user_id).filter(Boolean)))
+        .filter(id => id !== user.id);
+
+      if (!userIds.length) {
+        setReviewStatus('No hay usuarios a tu cargo.');
+        return;
+      }
+
+      // 3) Perfiles
+      const pr = await supabase
+        .from('profiles')
+        .select('id, full_name, active')
+        .in('id', userIds)
+        .eq('active', true)
+        .order('full_name', { ascending: true });
+
+      if (pr.error) {
+        setReviewStatus('No se pudieron cargar perfiles (permisos).');
+        return;
+      }
+
+      const rows = (pr.data || []).filter(r => r && r.id);
+      if (!rows.length) {
+        setReviewStatus('No hay usuarios activos a tu cargo.');
+        return;
+      }
+
+      reviewUserSelect.appendChild(new Option('Selecciona…', ''));
+      rows.forEach(r => {
+        reviewUserSelect.appendChild(new Option(r.full_name || r.id, r.id));
+      });
+
+      setReviewStatus('');
+    };
+
+    const loadUserWeekDoneMap = async (targetUserId) => {
+      // Consideramos completada si existe al menos 1 fila con week_done=true en esa semana
+      const res = await supabase
+        .from('notes')
+        .select('week, week_done')
+        .eq('user_id', targetUserId)
+        .eq('week_done', true);
+
+      const map = {};
+      if (!res.error) {
+        (res.data || []).forEach(r => {
+          if (r && r.week) map[String(r.week)] = true;
+        });
+      }
+      return map;
+    };
+
+    const loadWeeksReviewedMap = async (targetUserId) => {
+      const res = await supabase
+        .from('note_reviews')
+        .select('week, review_done')
+        .eq('leader_id', user.id)
+        .eq('user_id', targetUserId);
+
+      const map = {};
+      if (!res.error) {
+        (res.data || []).forEach(r => {
+          if (r && r.week != null) map[String(r.week)] = !!r.review_done;
+        });
+      }
+      return map;
+    };
+
+    const onSelectReviewUser = async () => {
+      if (!reviewUserSelect) return;
+      const id = reviewUserSelect.value || '';
+      reviewState.userId = id || null;
+      reviewState.userName = id ? (reviewUserSelect.selectedOptions?.[0]?.textContent || null) : null;
+      resetReviewWeekUI();
+      if (!id) {
+        setReviewStatus('');
+        paintReviewWeekTiles();
+        return;
+      }
+
+      setReviewStatus('Cargando semanas…');
+      reviewState.userWeeksDone = await loadUserWeekDoneMap(id);
+      reviewState.weeksReviewed = await loadWeeksReviewedMap(id);
+      paintReviewWeekTiles();
+      setReviewStatus('');
+    };
+
+    const selectReviewWeek = async (weekNum) => {
+      if (!reviewState.userId) {
+        setReviewStatus('Selecciona un usuario primero.');
+        return;
+      }
+      reviewState.week = weekNum;
+
+      // UI
+      reviewWeekPicker?.classList.add('is-hidden');
+      reviewWeekScreen?.classList.remove('is-hidden');
+      if (reviewWeekTitle) reviewWeekTitle.textContent = `Semana ${weekNum}`;
+      if (chkReviewWeekDone) chkReviewWeekDone.checked = !!reviewState.userWeeksDone[String(weekNum)];
+      if (chkWeekReviewed) chkWeekReviewed.checked = !!reviewState.weeksReviewed[String(weekNum)];
+      setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${weekNum}`);
+
+      // Cargar notas (4 hojas)
+      const { data, error } = await supabase
+        .from('notes')
+        .select('id, sheet, data, week_done, updated_at')
+        .eq('user_id', reviewState.userId)
+        .eq('week', weekNum);
+
+      if (error) {
+        setReviewMeta('No se pudieron cargar notas (permisos o sin datos).');
+        reviewState.notesBySheet = { dc: null, takers: null, cultos: null, lideres: null };
+        reviewState.noteIdForFeedback = null;
+      } else {
+        const by = { dc: null, takers: null, cultos: null, lideres: null };
+        (data || []).forEach(r => {
+          if (!r || !r.sheet) return;
+          if (by[r.sheet] == null) by[r.sheet] = r;
+        });
+        reviewState.notesBySheet = by;
+        // Nota base para feedback: dc si existe, si no la primera disponible
+        const base = by.dc || by.takers || by.cultos || by.lideres || null;
+        reviewState.noteIdForFeedback = base ? base.id : null;
+      }
+
+      await loadReviewComments();
+    };
+
+    const backToReviewWeeks = () => {
+      reviewWeekScreen?.classList.add('is-hidden');
+      reviewWeekPicker?.classList.remove('is-hidden');
+      if (reviewSheetScreen) reviewSheetScreen.classList.add('is-hidden');
+      if (reviewSheetContent) reviewSheetContent.textContent = '';
+      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
+      if (reviewComment) reviewComment.value = '';
+      setReviewCommentStatus('');
+      reviewState.week = null;
+    };
+
+    btnReviewBackToWeeks?.addEventListener('click', (e) => {
+      e.preventDefault();
+      backToReviewWeeks();
+    });
+
+    btnReviewSheetBack?.addEventListener('click', (e) => {
+      e.preventDefault();
+      reviewSheetScreen?.classList.add('is-hidden');
+      if (reviewSheetContent) reviewSheetContent.textContent = '';
+      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
+    });
+
+    const showReviewSheet = (key, title) => {
+      if (!reviewState.week) return;
+      const row = reviewState.notesBySheet[key];
+      if (reviewSheetTitle) reviewSheetTitle.textContent = title;
+      if (reviewSheetScreen) reviewSheetScreen.classList.remove('is-hidden');
+      if (reviewSheetStatus) reviewSheetStatus.textContent = row ? `Última actualización: ${row.updated_at || ''}` : 'Sin datos.';
+      const payload = row ? (row.data || {}) : {};
+      if (reviewSheetContent) {
+        try { reviewSheetContent.textContent = JSON.stringify(payload, null, 2); }
+        catch { reviewSheetContent.textContent = String(payload || ''); }
+      }
+    };
+
+    btnReviewDinamica?.addEventListener('click', () => showReviewSheet('dc', 'Dinámica celular'));
+    btnReviewTakers?.addEventListener('click', () => showReviewSheet('takers', 'Takers'));
+    btnReviewCultos?.addEventListener('click', () => showReviewSheet('cultos', 'Cultos'));
+    btnReviewLideres?.addEventListener('click', () => showReviewSheet('lideres', 'Reunión de Líderes/Ministerios'));
+
+    const upsertWeekReviewed = async (checked) => {
+      if (!reviewState.userId || !reviewState.week) return;
+      const payload = {
+        leader_id: user.id,
+        user_id: reviewState.userId,
+        week: reviewState.week,
+        review_done: !!checked,
+      };
+      const res = await supabase
+        .from('note_reviews')
+        .upsert(payload, { onConflict: 'leader_id,user_id,week' });
+
+      if (res.error) {
+        setReviewMeta('No se pudo guardar “Semana supervisada”.');
+        return;
+      }
+      reviewState.weeksReviewed[String(reviewState.week)] = !!checked;
+      paintReviewWeekTiles();
+      setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${reviewState.week} • Supervisada: ${checked ? 'Sí' : 'No'}`);
+    };
+
+    chkWeekReviewed?.addEventListener('change', () => {
+      upsertWeekReviewed(!!chkWeekReviewed.checked);
+    });
+
+    const loadReviewComments = async () => {
+      if (!reviewCommentsList) return;
+      if (!reviewState.noteIdForFeedback) {
+        reviewCommentsList.textContent = 'No hay nota guardada aún para esta semana.';
+        return;
+      }
+
+      reviewCommentsList.textContent = 'Cargando…';
+      const res = await supabase
+        .from('note_feedback')
+        .select('id, comment, created_at, reviewer_id')
+        .eq('note_id', reviewState.noteIdForFeedback)
+        .order('created_at', { ascending: false });
+
+      if (res.error) {
+        reviewCommentsList.textContent = 'No se pudo cargar el historial (permisos).';
+        return;
+      }
+
+      const rows = res.data || [];
+      if (!rows.length) {
+        reviewCommentsList.textContent = 'Sin notas de revisión aún.';
+        return;
+      }
+      reviewCommentsList.innerHTML = rows.map(r => {
+        const d = r.created_at ? escapeHtml(new Date(r.created_at).toLocaleString()) : '';
+        const c = escapeHtml(r.comment || '');
+        return `<div style="padding:10px;border:1px solid rgba(255,255,255,0.12);border-radius:12px;margin-bottom:8px;">` +
+               `<div class="muted tiny">${d}</div>` +
+               `<div>${c}</div>` +
+               `</div>`;
+      }).join('');
+    };
+
+    const addReviewComment = async () => {
+      if (!reviewState.noteIdForFeedback) {
+        setReviewCommentStatus('No hay nota guardada para asociar la revisión.');
+        return;
+      }
+      const txt = (reviewComment?.value || '').trim();
+      if (!txt) {
+        setReviewCommentStatus('Escribe una nota primero.');
+        return;
+      }
+      setReviewCommentStatus('Guardando…');
+
+      const res = await supabase
+        .from('note_feedback')
+        .insert({ note_id: reviewState.noteIdForFeedback, reviewer_id: user.id, comment: txt });
+
+      if (res.error) {
+        setReviewCommentStatus('No se pudo guardar la nota (permisos).');
+        return;
+      }
+
+      if (reviewComment) reviewComment.value = '';
+      setReviewCommentStatus('Guardado.');
+      await loadReviewComments();
+    };
+
+    btnAddReviewComment?.addEventListener('click', (e) => {
+      e.preventDefault();
+      addReviewComment();
+    });
+
+    reviewUserSelect?.addEventListener('change', () => {
+      onSelectReviewUser();
+    });
+
+    // Mostrar acceso "Revisión de Notas" solo a leaders
+    (async () => {
+      try {
+        const role = await getRole();
+        if (role === 'leader' && navReviewNotes) {
+          navReviewNotes.classList.remove('is-hidden');
+        }
+      } catch {}
+    })();
+
+    // Inicializa la vista de revisión al entrar
+    const initReviewView = async () => {
+      try {
+        const role = await getRole();
+        if (role !== 'leader') {
+          setReviewStatus('Solo disponible para líderes.');
+          return;
+        }
+
+        if (reviewWeeksGrid && !reviewWeeksGrid.dataset.ready) {
+          populateReviewWeeks();
+          reviewWeeksGrid.dataset.ready = '1';
+        }
+
+        // Reset UI
+        resetReviewWeekUI();
+
+        // Cargar usuarios a cargo
+        await loadReviewUsers();
+
+        // Si había selección previa, recargar
+        if (reviewUserSelect && reviewUserSelect.value) {
+          await onSelectReviewUser();
+        }
+      } catch {
+        setReviewStatus('No se pudo iniciar Revisión de Notas.');
+      }
+    };
 
     // ---- Anuncios (tabla announcements + Storage bucket announcements)
     const announcementsList = qs('#announcementsList');
@@ -1019,30 +1382,17 @@ btnBack?.addEventListener('click', () => {
       if (dcSheetTitle) dcSheetTitle.textContent = `Dinámica Celular • Semana ${state.selectedWeek}`;
       if (dcStatus) dcStatus.textContent = '';
 
-      // Cargar desde Supabase (si existe), fallback a borrador local
-      loadNoteRow(state.selectedWeek, 'dc').then(row => {
-        const db = row && row.data ? row.data : null;
-        const draftLocal = getWeekDraft(state.selectedWeek).dc;
-        const draft = db || draftLocal;
-        setSheetVisible(true);
-        if (draft) applyDcDraft(draft);
-        else {
-          if (dcDate && !dcDate.value) dcDate.value = todayISO();
-          initDcDefaults();
-        }
-        rebuildJustNames();
-      }).catch(() => {
-        const draft = getWeekDraft(state.selectedWeek).dc;
-        setSheetVisible(true);
-        if (draft) applyDcDraft(draft);
-        else {
-          if (dcDate && !dcDate.value) dcDate.value = todayISO();
-          initDcDefaults();
-        }
-        rebuildJustNames();
-      });
-
-      return;
+      // Cargar borrador local (si existe)
+      const draft = getWeekDraft(state.selectedWeek).dc;
+      setSheetVisible(true);
+      if (draft) {
+        applyDcDraft(draft);
+      } else {
+        // Defaults solo si NO hay borrador
+        if (dcDate && !dcDate.value) dcDate.value = todayISO();
+        initDcDefaults();
+      }
+      rebuildJustNames();
     };
 
     btnDcBack?.addEventListener('click', () => {
@@ -1066,17 +1416,8 @@ btnBack?.addEventListener('click', () => {
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
       takersStatus && (takersStatus.textContent = '');
       setDateIfEmpty(takersDate);
-
-      // Cargar desde Supabase (si existe), fallback a borrador local
-      loadNoteRow(state.selectedWeek, 'takers').then(row => {
-        const db = row && row.data ? row.data : null;
-        const draftLocal = getWeekDraft(state.selectedWeek).takers;
-        const draft = db || draftLocal;
-        if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
-      }).catch(() => {
-        const draftLocal = getWeekDraft(state.selectedWeek).takers;
-        if (draftLocal) applyRteDraft(draftLocal, takersTema, takersDate, takersNotes);
-      });
+      const draft = getWeekDraft(state.selectedWeek).takers;
+      if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
       showNoteSheet(notesSheetTakers);
     };
 
@@ -1085,17 +1426,8 @@ btnBack?.addEventListener('click', () => {
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
       cultosStatus && (cultosStatus.textContent = '');
       setDateIfEmpty(cultosDate);
-
-      // Cargar desde Supabase (si existe), fallback a borrador local
-      loadNoteRow(state.selectedWeek, 'cultos').then(row => {
-        const db = row && row.data ? row.data : null;
-        const draftLocal = getWeekDraft(state.selectedWeek).cultos;
-        const draft = db || draftLocal;
-        if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
-      }).catch(() => {
-        const draftLocal = getWeekDraft(state.selectedWeek).cultos;
-        if (draftLocal) applyRteDraft(draftLocal, cultosTema, cultosDate, cultosNotes);
-      });
+      const draft = getWeekDraft(state.selectedWeek).cultos;
+      if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
       showNoteSheet(notesSheetCultos);
     };
 
@@ -1104,17 +1436,8 @@ btnBack?.addEventListener('click', () => {
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
       lideresStatus && (lideresStatus.textContent = '');
       setDateIfEmpty(lideresDate);
-
-      // Cargar desde Supabase (si existe), fallback a borrador local
-      loadNoteRow(state.selectedWeek, 'lideres').then(row => {
-        const db = row && row.data ? row.data : null;
-        const draftLocal = getWeekDraft(state.selectedWeek).lideres;
-        const draft = db || draftLocal;
-        if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
-      }).catch(() => {
-        const draftLocal = getWeekDraft(state.selectedWeek).lideres;
-        if (draftLocal) applyRteDraft(draftLocal, lideresTema, lideresDate, lideresNotes);
-      });
+      const draft = getWeekDraft(state.selectedWeek).lideres;
+      if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
       showNoteSheet(notesSheetLideres);
     };
 
