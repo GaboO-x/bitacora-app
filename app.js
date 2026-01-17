@@ -108,6 +108,10 @@ btnBack?.addEventListener('click', () => {
       if (view === 'anuncios') {
         loadAnnouncements();
       }
+
+      if (view === 'material') {
+        loadMaterials();
+      }
     };
 
     const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
@@ -427,6 +431,65 @@ btnBack?.addEventListener('click', () => {
       }
 
       renderAnnouncements(data);
+    };
+
+    // ---- Material de apoyo (tabla materials + Storage bucket materials)
+    const supportGrid = qs('#supportGrid');
+
+    const renderMaterials = (rows) => {
+      if (!supportGrid) return;
+      const data = Array.isArray(rows) ? rows : [];
+      if (!data.length) {
+        supportGrid.innerHTML = '<div class="muted">No hay material de apoyo.</div>';
+        return;
+      }
+
+      // Usa el mismo contenedor grid existente
+      supportGrid.innerHTML = data.map(r => {
+        const title = escapeHtml(r.title || 'Material');
+        const created = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+        const url = r.image_url || '';
+        const fileName = url ? escapeHtml(r.file_name || parseFileNameFromUrl(url)) : escapeHtml(r.file_name || '');
+
+        const img = url
+          ? '<img src="' + escapeHtml(url) + '" alt="' + title + '" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);"/>'
+          : '<div class="muted">(sin imagen)</div>';
+
+        const actions = url
+          ? '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+              + '<a class="pill" href="' + escapeHtml(url) + '" download style="text-decoration:none;">Descargar</a>'
+              + '<a class="pill" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" style="text-decoration:none;">Abrir</a>'
+            + '</div>'
+          : '';
+
+        return (
+          '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
+            + '<div style="display:grid;gap:4px;">'
+              + '<div style="font-weight:800;">' + title + '</div>'
+              + '<div class="muted small">' + escapeHtml(created) + (fileName ? (' • ' + fileName) : '') + '</div>'
+            + '</div>'
+            + img
+            + actions
+          + '</div>'
+        );
+      }).join('');
+    };
+
+    const loadMaterials = async () => {
+      if (!supportGrid) return;
+      supportGrid.textContent = 'Cargando…';
+
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, title, image_url, file_name, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+        return;
+      }
+
+      renderMaterials(data);
     };
 
     const fmtInvestment = (v) => {
