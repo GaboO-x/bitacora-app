@@ -1,286 +1,578 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bitácora Virtual — Admin</title>
-  <link rel="stylesheet" href="./styles.css" />
-  <style>
-    /* Estilos SOLO para el menú del panel Admin (no toca styles.css) */
-    .admin-menu-grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:14px;margin-top:14px}
-    @media (max-width: 1020px){.admin-menu-grid{grid-template-columns:repeat(2,minmax(180px,1fr));}}
-    @media (max-width: 560px){.admin-menu-grid{grid-template-columns:1fr;}}
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Bitácora - App</title>
+<link href="app.css" rel="stylesheet"/>
+<style>
+/* Ajustes mínimos solicitados (solo estilos; sin afectar lógica) */
 
-    .admin-menu-card{width:100%;text-align:left;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);border-radius:14px;padding:14px 14px 12px 14px;cursor:pointer;transition:transform .08s ease, background .12s ease, border-color .12s ease;box-shadow:0 8px 26px rgba(0,0,0,.22)}
-    .admin-menu-card:hover{transform:translateY(-1px);background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18)}
-    .admin-menu-card:active{transform:translateY(0)}
-    .admin-menu-card[disabled]{opacity:.55;cursor:not-allowed;transform:none}
-    .admin-menu-top{display:flex;align-items:center;gap:10px}
-    .admin-menu-ico{width:28px;height:28px;display:grid;place-items:center;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10)}
-    .admin-menu-title{font-weight:700;margin:0}
-    .admin-menu-desc{margin:6px 0 0 0;color:rgba(255,255,255,.78);font-size:.95rem;line-height:1.25}
+/* 1) 'Llamado' y 'Oración final': igualar tamaño de título al resto */
+[data-dc-item="llamado"] .dc-item__title,
+[data-dc-item="oracion-final"] .dc-item__title{
+  font-size: 0.9rem !important;
+  line-height: 1.2 !important;
+}
 
-    .admin-section{display:none}
-    .admin-section.active{display:block}
-
-    .admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-    .admin-backlink{display:inline-flex;gap:8px;align-items:center}
-  </style>
+/* 3) Asistencia: alinear a la izquierda y evitar que quede 'esparcido' */
+.dc-summary{
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  flex-wrap: wrap !important;
+}
+.dc-summary__item{
+  margin: 0 !important;
+}
+</style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">Bitácora Virtual</div>
-    <div class="topbar-right">
-      <button id="btnLogout" class="secondary">Salir</button>
+<div class="app-shell is-sidebar-collapsed" id="appShell">
+<header class="topbar">
+<button aria-label="Abrir/cerrar menú" class="icon-btn" id="btnToggleSidebar" title="Menú">☰</button>
+<div class="topbar__title">
+<span class="brand">Bitácora</span>
+<span class="crumb" id="crumb">Inicio</span>
+</div>
+</header>
+<aside aria-label="Navegación" class="sidebar" id="sidebar">
+<div class="sidebar__group">
+<div class="sidebar__label">Menú</div>
+
+<button class="nav-btn" data-view="notas" type="button">
+<span class="nav-btn__icon">📝</span>
+<span class="nav-btn__text">Notas</span>
+</button>
+<button class="nav-btn" data-view="calendario" type="button">
+<span class="nav-btn__icon">📅</span>
+<span class="nav-btn__text">Calendario</span>
+</button>
+<button class="nav-btn" data-view="anuncios" type="button">
+<span class="nav-btn__icon">📣</span>
+<span class="nav-btn__text">Anuncios</span>
+</button>
+<button class="nav-btn" data-view="material" type="button">
+<span class="nav-btn__icon">📚</span>
+<span class="nav-btn__text">Material de apoyo</span>
+</button>
+<button class="nav-btn" data-view="misdoce" type="button">
+<span class="nav-btn__icon">👥</span>
+<span class="nav-btn__text">Mis Doce</span>
+</button>
+
+<button class="nav-btn" id="btnLogoutSide" type="button">
+<span class="nav-btn__icon">🚪</span>
+<span class="nav-btn__text">Salir</span>
+</button>
+</div>
+<div class="sidebar__footer">
+</div>
+</aside>
+<main class="main" id="main">
+<!-- Vistas -->
+<section class="view is-visible" data-view-section="home" id="view-home">
+<h1>Inicio</h1>
+<p class="muted">Accesos directos:</p>
+<div class="cards"><button class="card card--action" data-view="notas" type="button"><div class="card__title">📝 Notas</div><div class="card__body">Semanas (1–52)</div></button><button class="card card--action" data-view="calendario" type="button"><div class="card__title">📣 Anuncios</div><div class="card__body">Eventos y recordatorios.</div></button><button class="card card--action" data-view="anuncios" type="button"><div class="card__title">📅 Calendario</div><div class="card__body">Publicaciones y avisos.</div></button><button class="card card--action" data-view="material" type="button"><div class="card__title">📚 Material de apoyo</div><div class="card__body">Recursos evangelistos.</div></button><button class="card card--action" data-view="misdoce" type="button"><div class="card__title">👥 Mis Doce</div><div class="card__body">Tu equipo/lista.</div></button></div>
+</section>
+<section class="view" data-view-section="notas" id="view-notas">
+<div class="view__header">
+<h1>Notas</h1>
+<button class="pill" data-fixed="true" data-go="home" id="notesHint" type="button">Inicio</button></div>
+<!-- Subvista 1: Selector de semanas -->
+<div class="panel" id="notesWeekPicker">
+<div class="panel__title">Semanas (1–52)</div>
+<div aria-label="Selector de semanas" class="weeks weeks--wide" id="weeksGrid"></div>
+</div>
+<!-- Subvista 2: Semana seleccionada -->
+<div aria-live="polite" class="panel is-hidden" id="notesWeekScreen">
+<div class="panel__title-row">
+<div class="panel__title" id="weekTitle">Semana</div>
+<button class="pill" id="btnBackToWeeks" type="button">Volver</button>
+</div>
+<div class="week-tools">
+<label class="check">
+<input id="chkWeekDone" type="checkbox"/>
+<span>Semana completada</span>
+</label>
+</div>
+<div class="week-actions">
+<button class="big-btn" id="btnNoteDinamica" type="button">Dinámica celular</button>
+<button class="big-btn" id="btnNoteTakers" type="button">Takers</button>
+<button class="big-btn" id="btnNoteCultos" type="button">Cultos</button>
+<button class="big-btn" id="btnNoteLideres" type="button">Reunión de Líderes/Ministerios</button>
+</div>
+<div class="muted tiny" id="notesMeta"></div>
+<div class="placeholder" id="notesPlaceholder">
+<div class="placeholder__title">Siguiente fase</div>
+<div class="placeholder__body">Definimos el diseño de cada “hoja” (editor/lista) y luego lo conectamos con Supabase conservando el orden por semana.</div>
+</div>
+</div>
+
+
+
+
+<!-- Subvista 3: Hoja (Dinámica Celular) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetScreen">
+  <div class="sheet-header">
+    <div class="sheet-title" id="dcSheetTitle">Dinámica Celular</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnDcBack" type="button">Volver</button>
     </div>
   </div>
 
-  <div class="container">
-
-    <!-- INICIO / MENU -->
-    <div id="sectionHome" class="card admin-section active">
-      <h2 style="margin-bottom:6px;">Inicio</h2>
-      <div class="muted">Accesos directos:</div>
-
-      <div class="admin-menu-grid">
-        <button id="navInvite" class="admin-menu-card" type="button">
-          <div class="admin-menu-top">
-            <div class="admin-menu-ico">👤</div>
-            <div>
-              <div class="admin-menu-title">Invitar usuario</div>
-            </div>
-          </div>
-          <p class="admin-menu-desc">Crear usuarios e invitar por correo.</p>
-        </button>
-
-        <button id="navCalendar" class="admin-menu-card" type="button">
-          <div class="admin-menu-top">
-            <div class="admin-menu-ico">🗓️</div>
-            <div>
-              <div class="admin-menu-title">Calendario / Actividades</div>
-            </div>
-          </div>
-          <p class="admin-menu-desc">Eventos y recordatorios (estructura lista).</p>
-        </button>
-
-        <button id="navAnnouncements" class="admin-menu-card" type="button">
-          <div class="admin-menu-top">
-            <div class="admin-menu-ico">📣</div>
-            <div>
-              <div class="admin-menu-title">Anuncios</div>
-            </div>
-          </div>
-          <p class="admin-menu-desc">Publicaciones y avisos.</p>
-        </button>
-
-        <button id="navMaterials" class="admin-menu-card" type="button">
-          <div class="admin-menu-top">
-            <div class="admin-menu-ico">📚</div>
-            <div>
-              <div class="admin-menu-title">Material de Apoyo</div>
-            </div>
-          </div>
-          <p class="admin-menu-desc">Imágenes y recursos para ver/descargar.</p>
-        </button>
-      </div>
+  <div class="dc-top">
+    <div class="dc-top__label">&gt;&gt;&gt; <span class="dc-top__name">REUNIÓN CELULAR</span></div>
+    <div class="dc-top__date">
+      <input class="input" id="dcDate" type="date"/>
     </div>
-
-    <!-- INVITAR USUARIO -->
-    <div id="sectionInvite" class="card admin-section">
-      <div class="admin-section-head">
-        <h2 style="margin:0;">Invitar usuario</h2>
-        <button id="backFromInvite" class="secondary" type="button">Volver al inicio</button>
-      </div>
-
-      <div style="margin-top:14px;">
-        <label>Email</label>
-        <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
-
-        <label>Nombre completo</label>
-        <input id="inviteName" type="text" placeholder="Nombre Apellido" />
-
-        <label>Rol</label>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-          <label style="display:flex;gap:8px;align-items:center;margin:0;">
-            <input type="radio" name="inviteRole" value="user" checked />
-            <span>Lider_de_Célula</span>
-          </label>
-          <label style="display:flex;gap:8px;align-items:center;margin:0;">
-            <input type="radio" name="inviteRole" value="leader" />
-            <span>Lider_de_Escuadron</span>
-          </label>
-          <label style="display:flex;gap:8px;align-items:center;margin:0;">
-            <input type="radio" name="inviteRole" value="admin" />
-            <span>Admin_del_App</span>
-          </label>
-        </div>
-
-        <label style="margin-top:14px;">División</label>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-          <label style="display:flex;gap:8px;align-items:center;margin:0;">
-            <input type="checkbox" name="inviteDivision" value="makers" />
-            <span>Makers</span>
-          </label>
-          <label style="display:flex;gap:8px;align-items:center;margin:0;">
-            <input type="checkbox" name="inviteDivision" value="takers" />
-            <span>Takers</span>
-          </label>
-        </div>
-
-        <label style="margin-top:14px;">Escuadrón</label>
-        <div style="display:grid;gap:16px;margin-top:6px;">
-          <div>
-            <div class="muted small" style="font-weight:600;">Makers</div>
-            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URM" /><span>URM</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVM" /><span>UVM</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAM" /><span>UAM</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNM" /><span>UNM</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZM" /><span>UAZM</span></label>
-            </div>
-          </div>
-          <div>
-            <div class="muted small" style="font-weight:600;">Takers</div>
-            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URT" /><span>URT</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVT" /><span>UVT</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAT" /><span>UAT</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNT" /><span>UNT</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZT" /><span>UAZT</span></label>
-            </div>
-          </div>
-        </div>
-
-        <button id="btnInvite" style="margin-top:14px;">Enviar invitación</button>
-        <p id="msg" class="msg"></p>
-      </div>
-    </div>
-
-    <!-- CALENDARIO / ACTIVIDADES -->
-    <div id="sectionCalendar" class="card admin-section">
-      <div class="admin-section-head">
-        <h2 style="margin:0;">Calendario / Actividades</h2>
-        <button id="backFromCalendar" class="secondary" type="button">Volver al inicio</button>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
-        <div style="grid-column:1 / -1;">
-          <label>Actividad</label>
-          <input id="calActivity" type="text" placeholder="Ej: Reunión, Visita, Evento..." />
-        </div>
-
-        <div>
-          <label>Fecha</label>
-          <input id="calEventDate" type="date" />
-        </div>
-
-        <div>
-          <label>Encargado</label>
-          <input id="calOwnerName" type="text" placeholder="Nombre del encargado" />
-        </div>
-
-        <div>
-          <label>Contacto</label>
-          <input id="calContactPhone" type="text" placeholder="Teléfono" />
-        </div>
-
-        <div>
-          <label>Inversión</label>
-          <input id="calInvestment" type="number" step="0.01" placeholder="0" />
-        </div>
-
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
-          <button id="calBtnSave">Crear actividad</button>
-          <button id="calBtnCancel" class="secondary" style="display:none;">Cancelar</button>
-        </div>
-      </div>
-
-      <div style="overflow:auto;margin-top:14px;">
-        <table style="width:100%;border-collapse:collapse;min-width:720px;">
-          <thead>
-            <tr>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Actividad</th>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Fecha</th>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Encargado</th>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Contacto</th>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Inversión</th>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="calTbody">
-            <tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p id="calMsg" class="msg"></p>
-    </div>
-
-    <!-- BLOQUES FUTUROS (por ahora en blanco) -->
-    <div id="sectionAnnouncements" class="card admin-section">
-      <div class="admin-section-head">
-        <h2 style="margin:0;">Anuncios</h2>
-        <button id="backFromAnnouncements" class="secondary" type="button">Volver al inicio</button>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
-        <div style="grid-column:1 / -1;">
-          <label>Título (opcional)</label>
-          <input id="annTitle" type="text" placeholder="Ej: Aviso importante" />
-        </div>
-
-        <div style="grid-column:1 / -1;">
-          <label>Imagen</label>
-          <input id="annFile" type="file" accept="image/*" />
-          <div class="muted small" style="margin-top:6px;">Se sube a Storage (bucket <b>announcements</b>) y se guarda el <b>image_url</b> en la tabla.</div>
-        </div>
-
-        <div style="display:flex;gap:10px;justify-content:flex-end;grid-column:1 / -1;">
-          <button id="annBtnPublish" type="button">Publicar anuncio</button>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;">
-        <div class="muted" style="margin-bottom:8px;">Últimos anuncios</div>
-        <div id="annList" style="display:grid;gap:10px;"></div>
-      </div>
-
-      <p id="annMsg" class="msg"></p>
-    </div>
-
-    <div id="sectionMaterials" class="card admin-section">
-      <div class="admin-section-head">
-        <h2 style="margin:0;">Material de Apoyo</h2>
-        <button id="backFromMaterials" class="secondary" type="button">Volver al inicio</button>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
-        <div style="grid-column:1 / -1;">
-          <label>Título (opcional)</label>
-          <input id="matTitle" type="text" placeholder="Ej: Manual, Guía, Imagen de apoyo" />
-        </div>
-
-        <div style="grid-column:1 / -1;">
-          <label>Imagen</label>
-          <input id="matFile" type="file" accept="image/*" />
-          <div class="muted small" style="margin-top:6px;">Se sube a Storage (bucket <b>materials</b>) y se guarda el <b>image_url</b> en la tabla.</div>
-        </div>
-
-        <div style="display:flex;gap:10px;justify-content:flex-end;grid-column:1 / -1;">
-          <button id="matBtnPublish" type="button">Publicar material</button>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;">
-        <div class="muted" style="margin-bottom:8px;">Últimos materiales</div>
-        <div id="matList" style="display:grid;gap:10px;"></div>
-      </div>
-
-      <p id="matMsg" class="msg"></p>
-    </div>
-
   </div>
 
-  <script type="module" src="./admin.js"></script>
+  <!-- Dinámica Celular (Tiempo | Responsable) -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Dinámica Celular <span class="muted tiny">(Tiempo | Responsable)</span></div>
+
+    <div class="dc-grid" id="dcBlocks">
+      <div class="dc-item" data-dc-item="bienvenida">
+        <div class="dc-item__title">Bienvenida</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="oracion-inicial">
+        <div class="dc-item__title">Oración inicial</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="tema">
+        <div class="dc-item__title">Tema</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">25</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="ofrenda">
+        <div class="dc-item__title">Ofrenda</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="anuncios">
+        <div class="dc-item__title">Anuncios</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="testimonios">
+        <div class="dc-item__title">Testimonios</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="adoracion">
+        <div class="dc-item__title">Adoración</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="llamado">
+        <div class="dc-item__title">Llamado</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="oracion-final">
+        <div class="dc-item__title">Oración final</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asistencia -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Asistencia</div>
+    <div class="dc-summary">
+      <div class="dc-summary__item"><label class="field__label">Asistieron</label><input class="input input--mini" id="dcAsistieron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+      <div class="dc-summary__item"><label class="field__label">Faltaron</label><input class="input input--mini" id="dcFaltaron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+      <div class="dc-summary__item"><label class="field__label">Nuevos</label><input class="input input--mini" id="dcNuevos" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+    </div>
+  </div>
+
+  <!-- Seguimiento -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Seguimiento</div>
+    <div class="actions">
+      <button class="pill" id="btnDcRowAdd" type="button">+ Fila</button>
+      <button class="pill" id="btnDcRowRemove" type="button">− Fila</button>
+    </div>
+    <div class="table-wrap">
+      <table class="table dc-table" id="dcFollowTable">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Encargado</th>
+            <th>Justificó</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="dcFollowBody">
+          <tr>
+            <td><input class="input" type="text" placeholder="Nombre"/></td>
+            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td class="dc-table__just">
+              <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
+              <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
+            </td>
+            <td class="dc-table__date"><input class="input" type="date"/></td>
+          </tr>
+          <tr>
+            <td><input class="input" type="text" placeholder="Nombre"/></td>
+            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td class="dc-table__just">
+              <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
+              <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
+            </td>
+            <td class="dc-table__date"><input class="input" type="date"/></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Anuncios / Notas -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Anuncios</div>
+    <textarea class="textarea" id="dcNotes" placeholder="Escribe aquí..."></textarea>
+  </div>
+
+  <div class="muted tiny" id="dcStatus"></div>
+</div>
+
+<!-- Subvista 4: Hoja (Takers) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetTakers">
+  <div class="sheet-header">
+    <div class="sheet-title" id="takersSheetTitle">Takers</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnTakersBack" type="button">Volver</button>
+      <button class="pill" id="btnTakersShare" type="button">Compartir</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="takersMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="takersTema">Tema</label>
+        <input class="input input--tema" id="takersTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="takersDate">Fecha</label>
+        <input class="input" id="takersDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="takersNotes" contenteditable="true" spellcheck="true"></div>
+    </div>
+    <div class="muted tiny" id="takersStatus"></div>
+  </div>
+</div>
+
+<!-- Subvista 5: Hoja (Cultos) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetCultos">
+  <div class="sheet-header">
+    <div class="sheet-title" id="cultosSheetTitle">Cultos</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnCultosBack" type="button">Volver</button>
+      <button class="pill" id="btnCultosShare" type="button">Compartir</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="cultosMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="cultosTema">Tema</label>
+        <input class="input input--tema" id="cultosTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="cultosDate">Fecha</label>
+        <input class="input" id="cultosDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="cultosNotes" contenteditable="true" spellcheck="true"></div>
+    </div>
+    <div class="muted tiny" id="cultosStatus"></div>
+  </div>
+</div>
+
+<!-- Subvista 6: Hoja (Reunión de Líderes/Ministerios) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetLideres">
+  <div class="sheet-header">
+    <div class="sheet-title" id="lideresSheetTitle">Reunión de Líderes/Ministerios</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnLideresBack" type="button">Volver</button>
+      <button class="pill" id="btnLideresShare" type="button">Compartir</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="lideresMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="lideresTema">Tema</label>
+        <input class="input input--tema" id="lideresTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="lideresDate">Fecha</label>
+        <input class="input" id="lideresDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="lideresNotes" contenteditable="true" spellcheck="true"></div>
+    </div>
+    <div class="muted tiny" id="lideresStatus"></div>
+  </div>
+</div>
+
+
+</section>
+<section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Anuncios</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<div class="panel" id="calendarPanel">
+  <div class="sheet-header">
+    <div class="sheet-actions">
+      <button class="pill" id="btnCalNew" type="button">Nueva actividad</button>
+    </div>
+  </div>
+
+  <div class="muted tiny" id="calendarStatus"></div>
+
+  <div class="table-wrap" id="calendarContainer">Cargando…</div>
+</div>
+</section>
+<section class="view" data-view-section="anuncios" id="view-anuncios"><div class="view__header"><h1>Calendario</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<div class="placeholder">
+  <div class="placeholder__body">
+    <div id="announcementsList" class="muted">Cargando…</div>
+  </div>
+</div>
+
+</section>
+<section class="view" data-view-section="material" id="view-material"><div class="view__header"><h1>Material de apoyo</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<div class="placeholder">
+<div class="placeholder__body">
+<div class="grid" id="supportGrid">Cargando…</div>
+</div>
+</div>
+</section>
+<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<div class="panel" id="misDoceContainer">
+  <div class="sheet-header">
+    <div class="sheet-title">Mis Doce</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnMdAddRow" type="button">+</button>
+      <button class="pill" id="btnMdRemoveRow" type="button">−</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table md-table" id="misDoceTable">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Cumpleaños</th>
+          <th>Teléfono</th>
+          <th>Plan 5 Estrellas</th>
+          <th>DRC**</th>
+        </tr>
+      </thead>
+      <tbody id="misDoceBody">
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="md-note muted tiny">
+    LE= Leche Espiritual / CN= Cumbre de Nuevos / AC= Acelera / Lí= Líder / CC= Cumbre Clan / DRC= Día de reunión Célula
+  </div>
+</div>
+</section>
+</main>
+</div>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
