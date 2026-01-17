@@ -17,7 +17,8 @@ import { requireSession, getMyProfile } from "./shared.js";
     const ok = confirm('Seguro que deseas salir?');
     if (!ok) return;
     try {
-      await supabase.auth.signOut();
+      // Local scope is enough for a browser app and avoids edge cases with stale cached session.
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {}
     // Marca explícita para que index NO auto-redirija por sesión (y evita volver a app con Atrás).
     window.location.replace("./index.html?loggedout=1");
