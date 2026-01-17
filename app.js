@@ -468,19 +468,26 @@ btnBack?.addEventListener('click', () => {
         .select('user_id')
         .in('squad_code', codes);
       if (res.error) return [];
-      return Array.from(new Set((res.data || []).map(r => r.user_id).filter(Boolean)));
+	      // Remove duplicates and ALWAYS exclude the current leader from the scope list.
+	      return Array.from(new Set((res.data || []).map(r => r.user_id).filter(Boolean)))
+	        .filter(id => id !== user.id);
     };
 
-    const loadProfilesByIds = async (ids) => {
-      if (!ids || !ids.length) return [];
-      const res = await supabase
-        .from('profiles')
-        .select('id, full_name, active')
-        .in('id', ids)
-        .order('full_name', { ascending: true });
-      if (res.error) return [];
-      return (res.data || []).filter(p => p && p.active !== false);
-    };
+	    const loadProfilesByIds = async (ids) => {
+	      if (!ids || !ids.length) return [];
+	      // Enforce filtering at the query level to avoid any mismatch between
+	      // auth user id and profile id, and to never show leaders/admins here.
+	      const res = await supabase
+	        .from('profiles')
+	        .select('id, full_name')
+	        .in('id', ids)
+	        .eq('role', 'user')
+	        .eq('active', true)
+	        .neq('id', user.id)
+	        .order('full_name', { ascending: true });
+	      if (res.error) return [];
+	      return (res.data || []).filter(Boolean);
+	    };
 
     const loadReviewUsers = async () => {
       if (!reviewUserSelect) return;
