@@ -3,6 +3,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const CFG_KEY = "bitacora_cfg_v1";
 
+// Cachea el cliente en memoria para evitar crear múltiples instancias por página.
+let _supabaseClient = null;
+
 export function getCfg() {
   // 1) Prefer saved localStorage config (useful for dev/override)
   try {
@@ -32,7 +35,18 @@ export function setMsg(elId, text, isErr) {
 export async function ensureSupabase() {
   const cfg = getCfg();
   if (!cfg?.url || !cfg?.anon) return null;
-  return createClient(cfg.url, cfg.anon);
+
+  // Reusa si ya existe y coincide con la config actual.
+  if (_supabaseClient && _supabaseClient.__cfg_url === cfg.url && _supabaseClient.__cfg_anon === cfg.anon) {
+    return _supabaseClient;
+  }
+
+  const client = createClient(cfg.url, cfg.anon);
+  // Marcas internas para validar reuso.
+  client.__cfg_url = cfg.url;
+  client.__cfg_anon = cfg.anon;
+  _supabaseClient = client;
+  return client;
 }
 
 export async function requireSession() {
