@@ -365,17 +365,6 @@ btnBack?.addEventListener('click', () => {
     // ---- Anuncios (tabla announcements + Storage bucket announcements)
     const announcementsList = qs('#announcementsList');
 
-    const parseFileNameFromUrl = (url) => {
-      try {
-        const u = new URL(url);
-        const parts = u.pathname.split('/').filter(Boolean);
-        return parts[parts.length - 1] || 'archivo';
-      } catch {
-        const parts = String(url || '').split('/');
-        return parts[parts.length - 1] || 'archivo';
-      }
-    };
-
     const renderAnnouncements = (rows) => {
       if (!announcementsList) return;
       const data = Array.isArray(rows) ? rows : [];
@@ -386,28 +375,33 @@ btnBack?.addEventListener('click', () => {
 
       announcementsList.innerHTML = data.map(r => {
         const title = escapeHtml(r.title || 'Anuncio');
-        const created = r.created_at ? new Date(r.created_at).toLocaleString() : '';
         const url = r.image_url || '';
-        const fileName = url ? escapeHtml(parseFileNameFromUrl(url)) : '';
+        const safeUrl = escapeHtml(url);
 
         const img = url
-          ? '<img src="' + escapeHtml(url) + '" alt="' + title + '" style="max-width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);"/>'
+          ? (
+            '<a href="' + safeUrl + '" target="_blank" rel="noopener" style="text-decoration:none;display:block;">'
+              + '<img src="' + safeUrl + '" alt="' + title + '" '
+                + 'style="max-width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;"/>'
+            + '</a>'
+          )
           : '<div class="muted">(sin imagen)</div>';
 
         const actions = url
-          ? '<div style="display:flex;gap:10px;align-items:center;">'
-              + '<a class="pill" href="' + escapeHtml(url) + '" download style="text-decoration:none;">Descargar</a>'
-              + '<a class="pill" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" style="text-decoration:none;">Abrir</a>'
+          ? (
+            '<div style="display:flex;gap:10px;align-items:center;">'
+              + '<a class="pill" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar" '
+                + 'style="text-decoration:none;min-width:44px;text-align:center;">⬇️</a>'
+              + '<a class="pill" href="' + safeUrl + '" target="_blank" rel="noopener" title="Abrir" aria-label="Abrir" '
+                + 'style="text-decoration:none;min-width:44px;text-align:center;">🔍</a>'
             + '</div>'
+          )
           : '';
 
         return (
           '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
-            + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;">'
-              + '<div style="min-width:0;">'
-                + '<div style="font-weight:800;">' + title + '</div>'
-                + '<div class="muted small" style="margin-top:4px;">' + escapeHtml(created) + (fileName ? (' • ' + fileName) : '') + '</div>'
-              + '</div>'
+            + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;">'
+              + '<div style="min-width:0;font-weight:800;">' + title + '</div>'
               + actions
             + '</div>'
             + img
@@ -433,6 +427,7 @@ btnBack?.addEventListener('click', () => {
       renderAnnouncements(data);
     };
 
+
     // ---- Material de apoyo (tabla materials + Storage bucket materials)
     const supportGrid = qs('#supportGrid');
 
@@ -444,30 +439,34 @@ btnBack?.addEventListener('click', () => {
         return;
       }
 
-      // Usa el mismo contenedor grid existente
       supportGrid.innerHTML = data.map(r => {
         const title = escapeHtml(r.title || 'Material');
-        const created = r.created_at ? new Date(r.created_at).toLocaleString() : '';
         const url = r.image_url || '';
-        const fileName = url ? escapeHtml(r.file_name || parseFileNameFromUrl(url)) : escapeHtml(r.file_name || '');
+        const safeUrl = escapeHtml(url);
 
         const img = url
-          ? '<img src="' + escapeHtml(url) + '" alt="' + title + '" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);"/>'
+          ? (
+            '<a href="' + safeUrl + '" target="_blank" rel="noopener" style="text-decoration:none;display:block;">'
+              + '<img src="' + safeUrl + '" alt="' + title + '" '
+                + 'style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;"/>'
+            + '</a>'
+          )
           : '<div class="muted">(sin imagen)</div>';
 
         const actions = url
-          ? '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
-              + '<a class="pill" href="' + escapeHtml(url) + '" download style="text-decoration:none;">Descargar</a>'
-              + '<a class="pill" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" style="text-decoration:none;">Abrir</a>'
+          ? (
+            '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+              + '<a class="pill" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar" '
+                + 'style="text-decoration:none;min-width:44px;text-align:center;">⬇️</a>'
+              + '<a class="pill" href="' + safeUrl + '" target="_blank" rel="noopener" title="Abrir" aria-label="Abrir" '
+                + 'style="text-decoration:none;min-width:44px;text-align:center;">🔍</a>'
             + '</div>'
+          )
           : '';
 
         return (
           '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
-            + '<div style="display:grid;gap:4px;">'
-              + '<div style="font-weight:800;">' + title + '</div>'
-              + '<div class="muted small">' + escapeHtml(created) + (fileName ? (' • ' + fileName) : '') + '</div>'
-            + '</div>'
+            + '<div style="font-weight:800;">' + title + '</div>'
             + img
             + actions
           + '</div>'
@@ -481,7 +480,7 @@ btnBack?.addEventListener('click', () => {
 
       const { data, error } = await supabase
         .from('materials')
-        .select('id, title, image_url, file_name, created_at')
+        .select('id, title, image_url, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
