@@ -238,6 +238,39 @@ btnBack?.addEventListener('click', () => {
       if (editorEl && typeof draft.html === 'string' && draft.html.length) editorEl.innerHTML = draft.html;
     };
 
+    // Guarda en Supabase la hoja actual (si existe sesión) sin bloquear navegación.
+    // Importante: el auto-guardado local sigue siendo la fuente inmediata; Supabase es "best effort".
+    const upsertNoteToSupabase = (sheetKey, data, statusEl) => {
+      if (!state.selectedWeek) return;
+      if (!supabase || !user?.id) return;
+      if (!sheetKey || !data) return;
+
+      const week = Number(state.selectedWeek);
+      const weekDone = !!(chkWeekDone && chkWeekDone.checked);
+
+      // Fire-and-forget (no await) para no frenar la UI.
+      (async () => {
+        try {
+          setStatus(statusEl, `Guardando… ${nowLabel()} (Supabase)`);
+          const res = await supabase
+            .from('notes')
+            .upsert(
+              { user_id: user.id, week, sheet: sheetKey, data, week_done: weekDone },
+              { onConflict: 'user_id,week,sheet' }
+            );
+
+          if (res.error) {
+            setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (local) • Pendiente Supabase`);
+            return;
+          }
+
+          setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
+        } catch {
+          setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (local) • Pendiente Supabase`);
+        }
+      })();
+    };
+
     const autosaveNotesIfNeeded = () => {
       if (!state.selectedWeek) return;
 
@@ -246,27 +279,34 @@ btnBack?.addEventListener('click', () => {
         if (d) setWeekDraft(state.selectedWeek, { dc: d });
         state.dcDirty = false;
         setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        upsertNoteToSupabase('dc', d, dcStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'takers' && state.takersDirty) {
-        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
+        const d = collectRteDraft(takersTema, takersDate, takersNotes);
+        setWeekDraft(state.selectedWeek, { takers: d });
         state.takersDirty = false;
         setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        upsertNoteToSupabase('takers', d, takersStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
-        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
+        const d = collectRteDraft(cultosTema, cultosDate, cultosNotes);
+        setWeekDraft(state.selectedWeek, { cultos: d });
         state.cultosDirty = false;
         setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        upsertNoteToSupabase('cultos', d, cultosStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
-        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
+        const d = collectRteDraft(lideresTema, lideresDate, lideresNotes);
+        setWeekDraft(state.selectedWeek, { lideres: d });
         state.lideresDirty = false;
         setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
+        upsertNoteToSupabase('lideres', d, lideresStatus);
         return;
       }
     };
