@@ -46,11 +46,10 @@
 <span class="nav-btn__icon">📝</span>
 <span class="nav-btn__text">Notas</span>
 </button>
-<button class="nav-btn is-hidden" data-view="revision" id="navReviewNotes" type="button">
-<span class="nav-btn__icon">✅</span>
-<span class="nav-btn__text">Revisión de Notas</span>
-</button>
-
+	<button class="nav-btn is-hidden" data-view="revision" id="navReviewNotes" type="button">
+	<span class="nav-btn__icon">✅</span>
+	<span class="nav-btn__text">Revisión de Notas</span>
+	</button>
 <button class="nav-btn" data-view="calendario" type="button">
 <span class="nav-btn__icon">📅</span>
 <span class="nav-btn__text">Calendario</span>
@@ -81,7 +80,82 @@
 <section class="view is-visible" data-view-section="home" id="view-home">
 <h1>Inicio</h1>
 <p class="muted">Accesos directos:</p>
-<div class="cards"><button class="card card--action" data-view="notas" type="button"><div class="card__title">📝 Notas</div><div class="card__body">Semanas (1–52)</div></button><button class="card card--action" data-view="calendario" type="button"><div class="card__title">📣 Anuncios</div><div class="card__body">Eventos y recordatorios.</div></button><button class="card card--action" data-view="anuncios" type="button"><div class="card__title">📅 Calendario</div><div class="card__body">Publicaciones y avisos.</div></button><button class="card card--action" data-view="material" type="button"><div class="card__title">📚 Material de apoyo</div><div class="card__body">Recursos evangelistos.</div></button><button class="card card--action" data-view="misdoce" type="button"><div class="card__title">👥 Mis Doce</div><div class="card__body">Tu equipo/lista.</div></button></div>
+	<div class="cards">
+		<button class="card card--action" data-view="notas" type="button"><div class="card__title">📝 Notas</div><div class="card__body">Semanas (1–52)</div></button>
+		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title">✅ Revisión de Notas</div><div class="card__body">Solo líderes</div></button>
+		<button class="card card--action" data-view="calendario" type="button"><div class="card__title">📅 Calendario</div><div class="card__body">Eventos y recordatorios.</div></button>
+		<button class="card card--action" data-view="anuncios" type="button"><div class="card__title">📣 Anuncios</div><div class="card__body">Publicaciones y avisos.</div></button>
+		<button class="card card--action" data-view="material" type="button"><div class="card__title">📚 Material de apoyo</div><div class="card__body">Recursos evangelistos.</div></button>
+		<button class="card card--action" data-view="misdoce" type="button"><div class="card__title">👥 Mis Doce</div><div class="card__body">Tu equipo/lista.</div></button>
+	</div>
+</section>
+
+<!-- Revisión de Notas (Leader) -->
+<section class="view" data-view-section="revision" id="view-revision">
+  <div class="view__header">
+    <h1>Revisión de Notas</h1>
+    <div class="view__nav">
+      <button class="pill" data-go="back" type="button">Volver</button>
+      <button class="pill" data-go="home" type="button">Inicio</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel__title">Usuario a revisar</div>
+    <select class="input" id="reviewUserSelect">
+      <option value="">Cargando…</option>
+    </select>
+    <div class="muted tiny" id="reviewUserStatus"></div>
+  </div>
+
+  <div class="panel" id="reviewWeekPicker">
+    <div class="panel__title">Semanas (1–52)</div>
+    <div class="weeks weeks--wide" id="reviewWeeksGrid"></div>
+  </div>
+
+  <div class="panel is-hidden" id="reviewWeekScreen">
+    <div class="sheet-header">
+      <div class="sheet-title" id="reviewWeekTitle">Semana</div>
+      <div class="sheet-actions">
+        <button class="pill" id="btnReviewBackToWeeks" type="button">Volver</button>
+      </div>
+    </div>
+
+    <div class="muted tiny" id="reviewMeta"></div>
+
+    <div style="display:flex;gap:14px;align-items:center;margin:10px 0;flex-wrap:wrap;">
+      <label class="dc-just"><input id="chkReviewWeekDone" type="checkbox" disabled> Semana completada (Usuario)</label>
+      <label class="dc-just"><input id="chkWeekReviewed" type="checkbox"> Semana supervisada</label>
+    </div>
+
+    <div class="tabs" style="margin-top:10px;">
+      <button class="pill" id="btnReviewDinamica" type="button">Dinámica celular</button>
+      <button class="pill" id="btnReviewTakers" type="button">Takers</button>
+      <button class="pill" id="btnReviewCultos" type="button">Cultos</button>
+      <button class="pill" id="btnReviewLideres" type="button">Reunión de Líderes/Ministerios</button>
+    </div>
+
+    <div class="panel is-hidden" id="reviewSheetScreen" style="margin-top:12px;">
+      <div class="sheet-header">
+        <div class="sheet-title" id="reviewSheetTitle">Hoja</div>
+        <div class="sheet-actions">
+          <button class="pill" id="btnReviewSheetBack" type="button">Volver</button>
+        </div>
+      </div>
+      <div class="muted tiny" id="reviewSheetStatus"></div>
+      <pre class="table-wrap" id="reviewSheetContent" style="white-space:pre-wrap;">Selecciona una hoja…</pre>
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <div class="panel__title">Notas de revisión</div>
+      <textarea class="input" id="reviewComment" rows="3" placeholder="Escribe una nota de revisión..."></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+        <button class="pill" id="btnAddReviewComment" type="button">Guardar nota</button>
+        <div class="muted tiny" id="reviewCommentStatus"></div>
+      </div>
+      <div class="table-wrap" id="reviewCommentsList" style="margin-top:10px;">Selecciona una semana para ver el historial.</div>
+    </div>
+  </div>
 </section>
 <section class="view" data-view-section="notas" id="view-notas">
 <div class="view__header">
@@ -409,89 +483,7 @@
 
 
 </section>
-
-<section class="view is-hidden" data-view-section="revision" id="view-revision">
-  <div class="view__header">
-    <h1>Revisión de Notas</h1>
-    <div class="view__nav">
-      <button class="pill" data-go="back" type="button">Volver</button>
-      <button class="pill" data-go="home" type="button">Inicio</button>
-    </div>
-  </div>
-
-  <div class="panel" id="reviewUserPanel">
-    <div class="panel__title">Usuario a revisar</div>
-    <div class="row" style="align-items:end;">
-      <div>
-        <label class="muted" for="reviewUserSelect">Nombre del Usuario a revisar</label>
-        <select id="reviewUserSelect" class="input"></select>
-      </div>
-    </div>
-    <div class="muted tiny" id="reviewUserStatus"></div>
-  </div>
-
-  <div class="panel" id="reviewWeekPicker">
-    <div class="panel__title">Semanas (1–52)</div>
-    <div aria-label="Selector de semanas (Revisión)" class="weeks weeks--wide" id="reviewWeeksGrid"></div>
-  </div>
-
-  <div aria-live="polite" class="panel is-hidden" id="reviewWeekScreen">
-    <div class="panel__title-row">
-      <div class="panel__title" id="reviewWeekTitle">Semana</div>
-      <button class="pill" id="btnReviewBackToWeeks" type="button">Volver</button>
-    </div>
-
-    <div class="week-tools">
-      <label class="check">
-        <input id="chkReviewWeekDone" type="checkbox" disabled />
-        <span>Semana completada (Usuario)</span>
-      </label>
-
-      <label class="check" style="margin-left:18px;">
-        <input id="chkWeekReviewed" type="checkbox" />
-        <span>Semana supervisada</span>
-      </label>
-    </div>
-
-    <div class="week-actions">
-      <button class="big-btn" id="btnReviewDinamica" type="button">Dinámica celular</button>
-      <button class="big-btn" id="btnReviewTakers" type="button">Takers</button>
-      <button class="big-btn" id="btnReviewCultos" type="button">Cultos</button>
-      <button class="big-btn" id="btnReviewLideres" type="button">Reunión de Líderes/Ministerios</button>
-    </div>
-
-    <div class="muted tiny" id="reviewMeta"></div>
-
-    <div class="placeholder" id="reviewPlaceholder">
-      <div class="placeholder__title">Selecciona una hoja</div>
-      <div class="placeholder__body">El contenido se mostrará en modo lectura.</div>
-    </div>
-
-    <div class="panel is-hidden" id="reviewSheetScreen">
-      <div class="sheet-header">
-        <div class="sheet-title" id="reviewSheetTitle">Hoja</div>
-        <div class="sheet-actions">
-          <button class="pill" id="btnReviewSheetBack" type="button">Volver</button>
-        </div>
-      </div>
-
-      <div class="muted tiny" id="reviewSheetStatus"></div>
-      <pre class="pre" id="reviewSheetContent"></pre>
-    </div>
-
-    <div class="panel" style="margin-top:14px;" id="reviewFeedbackPanel">
-      <div class="panel__title">Notas de revisión</div>
-      <label class="muted" for="reviewComment">Agregar nota</label>
-      <input id="reviewComment" class="input" placeholder="Escribe una nota de revisión…" />
-      <button id="btnAddReviewComment" type="button">Guardar nota de revisión</button>
-      <div class="muted tiny" id="reviewCommentStatus"></div>
-      <div style="height:10px"></div>
-      <div id="reviewCommentsList" class="muted">Selecciona una semana para ver el historial.</div>
-    </div>
-  </div>
-</section>
-
-<section class="view" data-view-section="calendario" id="view-calendario" id="view-calendario"><div class="view__header"><h1>Anuncios</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+<section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Anuncios</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
 
 <div class="panel" id="calendarPanel">
   <div class="sheet-header">
