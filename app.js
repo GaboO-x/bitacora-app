@@ -49,15 +49,6 @@ btnBack?.addEventListener('click', () => {
       takersDirty: false,
       cultosDirty: false,
       lideresDirty: false,
-
-      // Revisión (Leader)
-      reviewUserId: null,
-      reviewUserName: null,
-      reviewWeek: null,
-      reviewWeeksDone: {},
-      reviewWeeksReviewed: {},
-      reviewNotesBySheet: {},
-      reviewPrimaryNoteId: null,
     };
 
     // ---- Sidebar toggle (móvil / escritorio)
@@ -354,10 +345,11 @@ btnBack?.addEventListener('click', () => {
       return p;
     };
 
+    // Role actual del usuario (según profiles). Importante: getMyProfile requiere userId.
     const getRole = async () => {
       if (!cachedProfile) {
         try {
-          cachedProfile = normalizeProfile(await getMyProfile(supabase));
+          cachedProfile = normalizeProfile(await getMyProfile(supabase, user.id));
         } catch {
           cachedProfile = null;
         }
@@ -365,8 +357,20 @@ btnBack?.addEventListener('click', () => {
       return (cachedProfile && cachedProfile.role) ? String(cachedProfile.role) : 'user';
     };
 
+    const escapeHtml = (s) => {
+      const str = (s == null) ? '' : String(s);
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    };
+
+
     // ---- Revisión de Notas (solo Leader)
     const navReviewNotes = qs('#navReviewNotes');
+    const cardReviewNotes = qs('#cardReviewNotes');
 
     const reviewUserSelect = qs('#reviewUserSelect');
     const reviewUserStatus = qs('#reviewUserStatus');
@@ -406,32 +410,13 @@ btnBack?.addEventListener('click', () => {
     };
 
     const setReviewStatus = (msg) => setStatus(reviewUserStatus, msg);
-
     const setReviewMeta = (msg) => setStatus(reviewMeta, msg);
-
     const setReviewCommentStatus = (msg) => setStatus(reviewCommentStatus, msg);
-
-    const resetReviewWeekUI = () => {
-      reviewWeekScreen?.classList.add('is-hidden');
-      reviewWeekPicker?.classList.remove('is-hidden');
-      if (reviewSheetScreen) reviewSheetScreen.classList.add('is-hidden');
-      if (reviewSheetContent) reviewSheetContent.textContent = '';
-      if (reviewSheetTitle) reviewSheetTitle.textContent = 'Hoja';
-      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
-      if (chkReviewWeekDone) chkReviewWeekDone.checked = false;
-      if (chkWeekReviewed) chkWeekReviewed.checked = false;
-      if (reviewCommentsList) reviewCommentsList.textContent = 'Selecciona una semana para ver el historial.';
-      if (reviewComment) reviewComment.value = '';
-      setReviewMeta('');
-      reviewState.week = null;
-      reviewState.notesBySheet = { dc: null, takers: null, cultos: null, lideres: null };
-      reviewState.noteIdForFeedback = null;
-    };
 
     const populateReviewWeeks = () => {
       if (!reviewWeeksGrid) return;
       reviewWeeksGrid.innerHTML = '';
-      for (let i = 1; i <= 52; i++) {
+      for (let i=1; i<=52; i++){
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'week';
@@ -444,93 +429,84 @@ btnBack?.addEventListener('click', () => {
 
     const paintReviewWeekTiles = () => {
       if (!reviewWeeksGrid) return;
-      const done = reviewState.userWeeksDone || {};
-      const reviewed = reviewState.weeksReviewed || {};
-      qsa('.week', reviewWeeksGrid).forEach(btn => {
-        const w = Number(btn.dataset.week || '0');
-        btn.classList.toggle('is-done', !!done[String(w)]);
-        // Sin cambios visuales extra: guardamos el estado en atributo
-        if (reviewed[String(w)] != null) btn.dataset.reviewed = reviewed[String(w)] ? '1' : '0';
-        else delete btn.dataset.reviewed;
+      qsa('.week', reviewWeeksGrid).forEach(w => {
+        const n = Number(w.dataset.week);
+        w.classList.toggle('is-done', !!reviewState.userWeeksDone[String(n)]);
+        const reviewed = !!reviewState.weeksReviewed[String(n)];
+        w.classList.toggle('is-selected', reviewState.week === n);
+        w.classList.toggle('is-reviewed', reviewed);
       });
+    };
+
+    const resetReviewWeekUI = () => {
+      reviewWeekScreen?.classList.add('is-hidden');
+      reviewWeekPicker?.classList.remove('is-hidden');
+      reviewSheetScreen?.classList.add('is-hidden');
+      if (reviewSheetContent) reviewSheetContent.textContent = '';
+      if (reviewSheetTitle) reviewSheetTitle.textContent = 'Hoja';
+      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
+      if (chkReviewWeekDone) chkReviewWeekDone.checked = false;
+      if (chkWeekReviewed) chkWeekReviewed.checked = false;
+      if (reviewCommentsList) reviewCommentsList.textContent = 'Selecciona una semana para ver el historial.';
+      setReviewCommentStatus('');
+    };
+
+    const loadLeaderSquadCodes = async () => {
+      const res = await supabase
+        .from('leader_squads')
+        .select('squad_code')
+        .eq('leader_id', user.id);
+      if (res.error) return [];
+      const codes = (res.data || []).map(r => r.squad_code).filter(Boolean);
+      return Array.from(new Set(codes));
+    };
+
+    const loadUsersInSquads = async (codes) => {
+      if (!codes || !codes.length) return [];
+      const res = await supabase
+        .from('user_squads')
+        .select('user_id')
+        .in('squad_code', codes);
+      if (res.error) return [];
+      return Array.from(new Set((res.data || []).map(r => r.user_id).filter(Boolean)));
+    };
+
+    const loadProfilesByIds = async (ids) => {
+      if (!ids || !ids.length) return [];
+      const res = await supabase
+        .from('profiles')
+        .select('id, full_name, active')
+        .in('id', ids)
+        .order('full_name', { ascending: true });
+      if (res.error) return [];
+      return (res.data || []).filter(p => p && p.active !== false);
     };
 
     const loadReviewUsers = async () => {
       if (!reviewUserSelect) return;
+      reviewUserSelect.innerHTML = '<option value="">Selecciona…</option>';
       setReviewStatus('Cargando usuarios…');
-      reviewUserSelect.innerHTML = '';
 
-      // 1) Obtener squads del leader
-      const ls = await supabase
-        .from('leader_squads')
-        .select('squad_code')
-        .eq('leader_id', user.id);
+      const squadCodes = await loadLeaderSquadCodes();
+      const userIds = await loadUsersInSquads(squadCodes);
+      const users = await loadProfilesByIds(userIds);
 
-      if (ls.error) {
-        setReviewStatus('No se pudieron cargar tus squads (permisos).');
-        return;
-      }
-
-      const squadCodes = Array.from(new Set((ls.data || []).map(r => r.squad_code).filter(Boolean)));
-      if (!squadCodes.length) {
-        setReviewStatus('No tienes squads asignados.');
-        return;
-      }
-
-      // 2) Usuarios en esos squads
-      const us = await supabase
-        .from('user_squads')
-        .select('user_id')
-        .in('squad_code', squadCodes);
-
-      if (us.error) {
-        setReviewStatus('No se pudieron cargar usuarios (permisos).');
-        return;
-      }
-
-      const userIds = Array.from(new Set((us.data || []).map(r => r.user_id).filter(Boolean)))
-        .filter(id => id !== user.id);
-
-      if (!userIds.length) {
-        setReviewStatus('No hay usuarios a tu cargo.');
-        return;
-      }
-
-      // 3) Perfiles
-      const pr = await supabase
-        .from('profiles')
-        .select('id, full_name, active')
-        .in('id', userIds)
-        .eq('active', true)
-        .order('full_name', { ascending: true });
-
-      if (pr.error) {
-        setReviewStatus('No se pudieron cargar perfiles (permisos).');
-        return;
-      }
-
-      const rows = (pr.data || []).filter(r => r && r.id);
-      if (!rows.length) {
-        setReviewStatus('No hay usuarios activos a tu cargo.');
-        return;
-      }
-
-      reviewUserSelect.appendChild(new Option('Selecciona…', ''));
-      rows.forEach(r => {
-        reviewUserSelect.appendChild(new Option(r.full_name || r.id, r.id));
+      users.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.full_name || u.id;
+        reviewUserSelect.appendChild(opt);
       });
 
-      setReviewStatus('');
+      setReviewStatus(users.length ? '' : 'No tienes usuarios asignados.');
     };
 
     const loadUserWeekDoneMap = async (targetUserId) => {
-      // Consideramos completada si existe al menos 1 fila con week_done=true en esa semana
       const res = await supabase
         .from('notes')
         .select('week, week_done')
         .eq('user_id', targetUserId)
         .eq('week_done', true);
-
       const map = {};
       if (!res.error) {
         (res.data || []).forEach(r => {
@@ -546,7 +522,6 @@ btnBack?.addEventListener('click', () => {
         .select('week, review_done')
         .eq('leader_id', user.id)
         .eq('user_id', targetUserId);
-
       const map = {};
       if (!res.error) {
         (res.data || []).forEach(r => {
@@ -561,10 +536,12 @@ btnBack?.addEventListener('click', () => {
       const id = reviewUserSelect.value || '';
       reviewState.userId = id || null;
       reviewState.userName = id ? (reviewUserSelect.selectedOptions?.[0]?.textContent || null) : null;
+      reviewState.week = null;
       resetReviewWeekUI();
+      paintReviewWeekTiles();
+
       if (!id) {
         setReviewStatus('');
-        paintReviewWeekTiles();
         return;
       }
 
@@ -575,14 +552,60 @@ btnBack?.addEventListener('click', () => {
       setReviewStatus('');
     };
 
+    const renderJson = (obj) => {
+      try { return JSON.stringify(obj || {}, null, 2); }
+      catch { return String(obj || ''); }
+    };
+
+    const showReviewSheet = (key, title) => {
+      reviewSheetScreen?.classList.remove('is-hidden');
+      if (reviewSheetTitle) reviewSheetTitle.textContent = title;
+      const row = reviewState.notesBySheet[key];
+      if (!row) {
+        if (reviewSheetContent) reviewSheetContent.textContent = 'Sin notas para esta hoja.';
+        return;
+      }
+      if (reviewSheetContent) reviewSheetContent.textContent = renderJson(row.data);
+    };
+
+    const loadReviewComments = async () => {
+      if (!reviewCommentsList) return;
+      if (!reviewState.noteIdForFeedback) {
+        reviewCommentsList.textContent = 'No hay historial (no hay notas de esa semana).';
+        return;
+      }
+      reviewCommentsList.textContent = 'Cargando…';
+      const res = await supabase
+        .from('note_feedback')
+        .select('id, comment, created_at, reviewer_id')
+        .eq('note_id', reviewState.noteIdForFeedback)
+        .order('created_at', { ascending: false });
+      if (res.error) {
+        reviewCommentsList.textContent = 'No se pudo cargar el historial.';
+        return;
+      }
+      const rows = res.data || [];
+      if (!rows.length) {
+        reviewCommentsList.textContent = 'Sin notas de revisión.';
+        return;
+      }
+      reviewCommentsList.innerHTML = rows.map(r => {
+        const d = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+        return `<div class="panel" style="padding:10px; margin:0 0 10px 0;">
+          <div class="muted tiny">${escapeHtml(d)}</div>
+          <div style="white-space:pre-wrap;">${escapeHtml(r.comment || '')}</div>
+        </div>`;
+      }).join('');
+    };
+
     const selectReviewWeek = async (weekNum) => {
       if (!reviewState.userId) {
         setReviewStatus('Selecciona un usuario primero.');
         return;
       }
       reviewState.week = weekNum;
+      paintReviewWeekTiles();
 
-      // UI
       reviewWeekPicker?.classList.add('is-hidden');
       reviewWeekScreen?.classList.remove('is-hidden');
       if (reviewWeekTitle) reviewWeekTitle.textContent = `Semana ${weekNum}`;
@@ -590,178 +613,101 @@ btnBack?.addEventListener('click', () => {
       if (chkWeekReviewed) chkWeekReviewed.checked = !!reviewState.weeksReviewed[String(weekNum)];
       setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${weekNum}`);
 
-      // Cargar notas (4 hojas)
-      const { data, error } = await supabase
+      // Cargar notas (si hay)
+      const res = await supabase
         .from('notes')
         .select('id, sheet, data, week_done, updated_at')
         .eq('user_id', reviewState.userId)
         .eq('week', weekNum);
 
-      if (error) {
-        setReviewMeta('No se pudieron cargar notas (permisos o sin datos).');
+      if (res.error) {
+        if (reviewSheetContent) reviewSheetContent.textContent = 'No se pudo cargar notas.';
         reviewState.notesBySheet = { dc: null, takers: null, cultos: null, lideres: null };
         reviewState.noteIdForFeedback = null;
-      } else {
-        const by = { dc: null, takers: null, cultos: null, lideres: null };
-        (data || []).forEach(r => {
-          if (!r || !r.sheet) return;
-          if (by[r.sheet] == null) by[r.sheet] = r;
-        });
-        reviewState.notesBySheet = by;
-        // Nota base para feedback: dc si existe, si no la primera disponible
-        const base = by.dc || by.takers || by.cultos || by.lideres || null;
-        reviewState.noteIdForFeedback = base ? base.id : null;
+        await loadReviewComments();
+        return;
       }
 
+      const rows = res.data || [];
+      const by = { dc: null, takers: null, cultos: null, lideres: null };
+      rows.forEach(r => {
+        if (!r || !r.sheet) return;
+        const k = String(r.sheet);
+        if (k in by) by[k] = r;
+      });
+      reviewState.notesBySheet = by;
+      reviewState.noteIdForFeedback = rows[0]?.id || null;
+
+      // Default: mostrar dinámica
+      showReviewSheet('dc', 'Dinámica celular');
       await loadReviewComments();
     };
 
-    const backToReviewWeeks = () => {
-      reviewWeekScreen?.classList.add('is-hidden');
-      reviewWeekPicker?.classList.remove('is-hidden');
-      if (reviewSheetScreen) reviewSheetScreen.classList.add('is-hidden');
-      if (reviewSheetContent) reviewSheetContent.textContent = '';
-      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
-      if (reviewComment) reviewComment.value = '';
-      setReviewCommentStatus('');
-      reviewState.week = null;
-    };
-
-    btnReviewBackToWeeks?.addEventListener('click', (e) => {
-      e.preventDefault();
-      backToReviewWeeks();
-    });
-
-    btnReviewSheetBack?.addEventListener('click', (e) => {
-      e.preventDefault();
-      reviewSheetScreen?.classList.add('is-hidden');
-      if (reviewSheetContent) reviewSheetContent.textContent = '';
-      if (reviewSheetStatus) reviewSheetStatus.textContent = '';
-    });
-
-    const showReviewSheet = (key, title) => {
-      if (!reviewState.week) return;
-      const row = reviewState.notesBySheet[key];
-      if (reviewSheetTitle) reviewSheetTitle.textContent = title;
-      if (reviewSheetScreen) reviewSheetScreen.classList.remove('is-hidden');
-      if (reviewSheetStatus) reviewSheetStatus.textContent = row ? `Última actualización: ${row.updated_at || ''}` : 'Sin datos.';
-      const payload = row ? (row.data || {}) : {};
-      if (reviewSheetContent) {
-        try { reviewSheetContent.textContent = JSON.stringify(payload, null, 2); }
-        catch { reviewSheetContent.textContent = String(payload || ''); }
+    const upsertReviewDone = async (val) => {
+      if (!reviewState.userId || !reviewState.week) return;
+      const res = await supabase
+        .from('note_reviews')
+        .upsert({ leader_id: user.id, user_id: reviewState.userId, week: reviewState.week, review_done: !!val },
+          { onConflict: 'leader_id,user_id,week' });
+      if (!res.error) {
+        reviewState.weeksReviewed[String(reviewState.week)] = !!val;
+        paintReviewWeekTiles();
       }
     };
+
+    btnReviewBackToWeeks?.addEventListener('click', () => {
+      reviewState.week = null;
+      resetReviewWeekUI();
+      paintReviewWeekTiles();
+    });
+
+    btnReviewSheetBack?.addEventListener('click', () => {
+      reviewSheetScreen?.classList.add('is-hidden');
+    });
 
     btnReviewDinamica?.addEventListener('click', () => showReviewSheet('dc', 'Dinámica celular'));
     btnReviewTakers?.addEventListener('click', () => showReviewSheet('takers', 'Takers'));
     btnReviewCultos?.addEventListener('click', () => showReviewSheet('cultos', 'Cultos'));
     btnReviewLideres?.addEventListener('click', () => showReviewSheet('lideres', 'Reunión de Líderes/Ministerios'));
 
-    const upsertWeekReviewed = async (checked) => {
-      if (!reviewState.userId || !reviewState.week) return;
-      const payload = {
-        leader_id: user.id,
-        user_id: reviewState.userId,
-        week: reviewState.week,
-        review_done: !!checked,
-      };
-      const res = await supabase
-        .from('note_reviews')
-        .upsert(payload, { onConflict: 'leader_id,user_id,week' });
-
-      if (res.error) {
-        setReviewMeta('No se pudo guardar “Semana supervisada”.');
-        return;
-      }
-      reviewState.weeksReviewed[String(reviewState.week)] = !!checked;
-      paintReviewWeekTiles();
-      setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${reviewState.week} • Supervisada: ${checked ? 'Sí' : 'No'}`);
-    };
+    reviewUserSelect?.addEventListener('change', () => onSelectReviewUser());
 
     chkWeekReviewed?.addEventListener('change', () => {
-      upsertWeekReviewed(!!chkWeekReviewed.checked);
+      upsertReviewDone(!!chkWeekReviewed.checked);
     });
 
-    const loadReviewComments = async () => {
-      if (!reviewCommentsList) return;
-      if (!reviewState.noteIdForFeedback) {
-        reviewCommentsList.textContent = 'No hay nota guardada aún para esta semana.';
-        return;
-      }
-
-      reviewCommentsList.textContent = 'Cargando…';
-      const res = await supabase
-        .from('note_feedback')
-        .select('id, comment, created_at, reviewer_id')
-        .eq('note_id', reviewState.noteIdForFeedback)
-        .order('created_at', { ascending: false });
-
-      if (res.error) {
-        reviewCommentsList.textContent = 'No se pudo cargar el historial (permisos).';
-        return;
-      }
-
-      const rows = res.data || [];
-      if (!rows.length) {
-        reviewCommentsList.textContent = 'Sin notas de revisión aún.';
-        return;
-      }
-      reviewCommentsList.innerHTML = rows.map(r => {
-        const d = r.created_at ? escapeHtml(new Date(r.created_at).toLocaleString()) : '';
-        const c = escapeHtml(r.comment || '');
-        return `<div style="padding:10px;border:1px solid rgba(255,255,255,0.12);border-radius:12px;margin-bottom:8px;">` +
-               `<div class="muted tiny">${d}</div>` +
-               `<div>${c}</div>` +
-               `</div>`;
-      }).join('');
-    };
-
-    const addReviewComment = async () => {
-      if (!reviewState.noteIdForFeedback) {
-        setReviewCommentStatus('No hay nota guardada para asociar la revisión.');
-        return;
-      }
+    btnAddReviewComment?.addEventListener('click', async (e) => {
+      e.preventDefault();
       const txt = (reviewComment?.value || '').trim();
-      if (!txt) {
-        setReviewCommentStatus('Escribe una nota primero.');
+      if (!txt) return;
+      if (!reviewState.noteIdForFeedback) {
+        setReviewCommentStatus('No se puede guardar (no hay notas de esa semana).');
         return;
       }
       setReviewCommentStatus('Guardando…');
-
       const res = await supabase
         .from('note_feedback')
         .insert({ note_id: reviewState.noteIdForFeedback, reviewer_id: user.id, comment: txt });
-
       if (res.error) {
         setReviewCommentStatus('No se pudo guardar la nota (permisos).');
         return;
       }
-
       if (reviewComment) reviewComment.value = '';
       setReviewCommentStatus('Guardado.');
       await loadReviewComments();
-    };
-
-    btnAddReviewComment?.addEventListener('click', (e) => {
-      e.preventDefault();
-      addReviewComment();
-    });
-
-    reviewUserSelect?.addEventListener('change', () => {
-      onSelectReviewUser();
     });
 
     // Mostrar acceso "Revisión de Notas" solo a leaders
     (async () => {
       try {
         const role = await getRole();
-        if (role === 'leader' && navReviewNotes) {
-          navReviewNotes.classList.remove('is-hidden');
+        if (role === 'leader') {
+          navReviewNotes?.classList.remove('is-hidden');
+          cardReviewNotes?.classList.remove('is-hidden');
         }
       } catch {}
     })();
 
-    // Inicializa la vista de revisión al entrar
     const initReviewView = async () => {
       try {
         const role = await getRole();
@@ -769,19 +715,12 @@ btnBack?.addEventListener('click', () => {
           setReviewStatus('Solo disponible para líderes.');
           return;
         }
-
         if (reviewWeeksGrid && !reviewWeeksGrid.dataset.ready) {
           populateReviewWeeks();
           reviewWeeksGrid.dataset.ready = '1';
         }
-
-        // Reset UI
         resetReviewWeekUI();
-
-        // Cargar usuarios a cargo
         await loadReviewUsers();
-
-        // Si había selección previa, recargar
         if (reviewUserSelect && reviewUserSelect.value) {
           await onSelectReviewUser();
         }
@@ -789,6 +728,7 @@ btnBack?.addEventListener('click', () => {
         setReviewStatus('No se pudo iniciar Revisión de Notas.');
       }
     };
+
 
     // ---- Anuncios (tabla announcements + Storage bucket announcements)
     const announcementsList = qs('#announcementsList');
