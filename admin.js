@@ -49,6 +49,11 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     await loadAnnouncements();
   });
 
+  document.getElementById("navMaterials")?.addEventListener("click", async () => {
+    showSection("materials");
+    await loadMaterials();
+  });
+
 
   // Back to home buttons
   document.getElementById("backFromInvite")?.addEventListener("click", () => showSection("home"));
@@ -636,6 +641,199 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
       btn.disabled = false;
       btn.textContent = originalText || "Eliminar";
       annBusy = false;
+    }
+  });
+
+  // -----------------------------
+  // Material de apoyo (subir imagen a Storage + registrar en tabla)
+  // -----------------------------
+  const matEls = {
+    title: document.getElementById("matTitle"),
+    file: document.getElementById("matFile"),
+    btnPublish: document.getElementById("matBtnPublish"),
+    list: document.getElementById("matList"),
+  };
+
+  let matBusy = false;
+  let matRows = [];
+
+  function setMatMsg(text, isError) {
+    setMsg("matMsg", text, !!isError);
+  }
+
+  function renderMatList() {
+    if (!matEls.list) return;
+
+    if (!Array.isArray(matRows) || matRows.length === 0) {
+      matEls.list.innerHTML = '<div class="muted">No hay materiales.</div>';
+      return;
+    }
+
+    matEls.list.innerHTML = matRows.map(r => {
+      const title = escapeHtml(r.title || "(Sin título)");
+      const created = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+      const url = r.image_url || "";
+      const fileName = (r.file_name || (url ? parseFileNameFromUrl(url) : "")) || "";
+      const id = r.id;
+
+      const preview = url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="secondary" style="text-decoration:none;">Ver</a>`
+        : '<span class="muted">(sin imagen)</span>';
+
+      const download = url
+        ? `<a href="${escapeHtml(url)}" download class="secondary" style="text-decoration:none;">Descargar</a>`
+        : '';
+
+      return `
+        <div style="border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;">${title}</div>
+            <div class="muted small" style="margin-top:4px;">${escapeHtml(created)}${fileName ? ` • ${escapeHtml(fileName)}` : ''}</div>
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">${preview}${download}</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button data-mat-action="delete" data-id="${escapeHtml(id)}" class="secondary" type="button">Eliminar</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function loadMaterials() {
+    if (matBusy) return;
+    matBusy = true;
+    try {
+      if (matEls.list) matEls.list.innerHTML = '<div class="muted">Cargando…</div>';
+
+      const { data, error } = await supabase
+        .from("materials")
+        .select("id, title, image_url, file_name, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setMatMsg(error.message, true);
+        matRows = [];
+        renderMatList();
+        return;
+      }
+
+      matRows = Array.isArray(data) ? data : [];
+      renderMatList();
+      setMatMsg("", false);
+    } finally {
+      matBusy = false;
+    }
+  }
+
+  function setMatPublishLoading(isLoading) {
+    if (!matEls.btnPublish) return;
+    if (!matEls.btnPublish.dataset.originalText) {
+      matEls.btnPublish.dataset.originalText = matEls.btnPublish.textContent || "Publicar material";
+    }
+
+    if (!isLoading) {
+      matEls.btnPublish.disabled = false;
+      matEls.btnPublish.textContent = matEls.btnPublish.dataset.originalText;
+      return;
+    }
+
+    matEls.btnPublish.disabled = true;
+    matEls.btnPublish.textContent = "Procesando…";
+  }
+
+  matEls.btnPublish?.addEventListener("click", async () => {
+    if (matBusy) return;
+
+    const title = (matEls.title?.value || "").trim();
+    const file = matEls.file?.files?.[0] || null;
+
+    if (!file) {
+      setMatMsg("Selecciona una imagen.", true);
+      return;
+    }
+
+    matBusy = true;
+    setMatPublishLoading(true);
+    setMatMsg("Subiendo material…", false);
+
+    try {
+      const ext = (file.name || "").split(".").pop() || "png";
+      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "png";
+      const filePath = `mat_${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
+
+      const { error: upErr } = await supabase
+        .storage
+        .from("materials")
+        .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
+
+      if (upErr) {
+        setMatMsg(upErr.message, true);
+        return;
+      }
+
+      const url = await getPublicOrSignedUrl("materials", filePath);
+      if (!url) {
+        setMatMsg("No se pudo obtener URL del archivo en Storage.", true);
+        return;
+      }
+
+      const { error: insErr } = await supabase
+        .from("materials")
+        .insert({
+          title: title || null,
+          image_url: url,
+          file_name: file.name || null,
+        });
+
+      if (insErr) {
+        setMatMsg(insErr.message, true);
+        return;
+      }
+
+      if (matEls.title) matEls.title.value = "";
+      if (matEls.file) matEls.file.value = "";
+
+      setMatMsg("Material publicado.", false);
+      await loadMaterials();
+    } finally {
+      setMatPublishLoading(false);
+      matBusy = false;
+    }
+  });
+
+  matEls.list?.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("button");
+    if (!btn) return;
+    const action = btn.getAttribute("data-mat-action");
+    const id = btn.getAttribute("data-id");
+    if (action !== "delete" || !id) return;
+
+    if (matBusy) return;
+    const ok = window.confirm("¿Eliminar este material? Esta acción no se puede deshacer.");
+    if (!ok) return;
+
+    matBusy = true;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Procesando…";
+
+    try {
+      const { error } = await supabase
+        .from("materials")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        setMatMsg(error.message, true);
+        return;
+      }
+
+      setMatMsg("Material eliminado.", false);
+      await loadMaterials();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText || "Eliminar";
+      matBusy = false;
     }
   });
 
