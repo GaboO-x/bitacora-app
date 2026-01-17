@@ -137,6 +137,49 @@ btnBack?.addEventListener('click', () => {
       writeDrafts(all);
     };
 
+
+    // --- Supabase persistence for Notas (notes table)
+    // Keeps local drafts as fallback, but the source of truth becomes Supabase.
+    const NOTES_DB_SHEETS = new Set(['dc','takers','cultos','lideres']);
+
+    const getMyUserId = () => {
+      try { return user && user.id ? user.id : null; } catch { return null; }
+    };
+
+    const loadNoteRow = async (week, sheet) => {
+      const uid = getMyUserId();
+      if (!uid || !week || !sheet || !NOTES_DB_SHEETS.has(sheet)) return null;
+      const { data, error } = await supabase
+        .from('notes')
+        .select('id, user_id, week, sheet, week_done, data, updated_at')
+        .eq('user_id', uid)
+        .eq('week', week)
+        .eq('sheet', sheet)
+        .maybeSingle();
+      if (error) return null;
+      return data || null;
+    };
+
+    const saveNoteRow = async (week, sheet, payloadData) => {
+      const uid = getMyUserId();
+      if (!uid || !week || !sheet || !NOTES_DB_SHEETS.has(sheet)) return { ok: false };
+
+      const row = {
+        user_id: uid,
+        week,
+        sheet,
+        // semana completada se mantiene en localStorage por ahora
+        week_done: false,
+        data: payloadData || {},
+      };
+
+      const { error } = await supabase
+        .from('notes')
+        .upsert(row, { onConflict: 'user_id,week,sheet' });
+
+      return { ok: !error, error };
+    };
+
     const setStatus = (statusEl, msg) => {
       if (!statusEl) return;
       statusEl.textContent = msg || '';
@@ -240,27 +283,46 @@ btnBack?.addEventListener('click', () => {
       if (state.notesOpenSheet === 'dc' && state.dcDirty) {
         const d = collectDcDraft();
         if (d) setWeekDraft(state.selectedWeek, { dc: d });
+          // Persist to Supabase (fire-and-forget)
+          if (d) saveNoteRow(state.selectedWeek, 'dc', d).then(r => {
+            if (r && r.ok) setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
+          }).catch(() => {});
         state.dcDirty = false;
         setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'takers' && state.takersDirty) {
-        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
+        const payload = collectRteDraft(takersTema, takersDate, takersNotes);
+          setWeekDraft(state.selectedWeek, { takers: payload });
+          // Persist to Supabase (fire-and-forget)
+          saveNoteRow(state.selectedWeek, 'takers', payload).then(r => {
+            if (r && r.ok) setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
+          }).catch(() => {});
         state.takersDirty = false;
         setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
-        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
+        const payload = collectRteDraft(cultosTema, cultosDate, cultosNotes);
+          setWeekDraft(state.selectedWeek, { cultos: payload });
+          // Persist to Supabase (fire-and-forget)
+          saveNoteRow(state.selectedWeek, 'cultos', payload).then(r => {
+            if (r && r.ok) setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
+          }).catch(() => {});
         state.cultosDirty = false;
         setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
 
       if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
-        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
+        const payload = collectRteDraft(lideresTema, lideresDate, lideresNotes);
+          setWeekDraft(state.selectedWeek, { lideres: payload });
+          // Persist to Supabase (fire-and-forget)
+          saveNoteRow(state.selectedWeek, 'lideres', payload).then(r => {
+            if (r && r.ok) setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
+          }).catch(() => {});
         state.lideresDirty = false;
         setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
@@ -954,17 +1016,30 @@ btnBack?.addEventListener('click', () => {
       if (dcSheetTitle) dcSheetTitle.textContent = `Dinámica Celular • Semana ${state.selectedWeek}`;
       if (dcStatus) dcStatus.textContent = '';
 
-      // Cargar borrador local (si existe)
-      const draft = getWeekDraft(state.selectedWeek).dc;
-      setSheetVisible(true);
-      if (draft) {
-        applyDcDraft(draft);
-      } else {
-        // Defaults solo si NO hay borrador
-        if (dcDate && !dcDate.value) dcDate.value = todayISO();
-        initDcDefaults();
-      }
-      rebuildJustNames();
+      // Cargar desde Supabase (si existe), fallback a borrador local
+      loadNoteRow(state.selectedWeek, 'dc').then(row => {
+        const db = row && row.data ? row.data : null;
+        const draftLocal = getWeekDraft(state.selectedWeek).dc;
+        const draft = db || draftLocal;
+        setSheetVisible(true);
+        if (draft) applyDcDraft(draft);
+        else {
+          if (dcDate && !dcDate.value) dcDate.value = todayISO();
+          initDcDefaults();
+        }
+        rebuildJustNames();
+      }).catch(() => {
+        const draft = getWeekDraft(state.selectedWeek).dc;
+        setSheetVisible(true);
+        if (draft) applyDcDraft(draft);
+        else {
+          if (dcDate && !dcDate.value) dcDate.value = todayISO();
+          initDcDefaults();
+        }
+        rebuildJustNames();
+      });
+
+      return;
     };
 
     btnDcBack?.addEventListener('click', () => {
@@ -988,8 +1063,17 @@ btnBack?.addEventListener('click', () => {
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
       takersStatus && (takersStatus.textContent = '');
       setDateIfEmpty(takersDate);
-      const draft = getWeekDraft(state.selectedWeek).takers;
-      if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
+
+      // Cargar desde Supabase (si existe), fallback a borrador local
+      loadNoteRow(state.selectedWeek, 'takers').then(row => {
+        const db = row && row.data ? row.data : null;
+        const draftLocal = getWeekDraft(state.selectedWeek).takers;
+        const draft = db || draftLocal;
+        if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
+      }).catch(() => {
+        const draftLocal = getWeekDraft(state.selectedWeek).takers;
+        if (draftLocal) applyRteDraft(draftLocal, takersTema, takersDate, takersNotes);
+      });
       showNoteSheet(notesSheetTakers);
     };
 
@@ -998,8 +1082,17 @@ btnBack?.addEventListener('click', () => {
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
       cultosStatus && (cultosStatus.textContent = '');
       setDateIfEmpty(cultosDate);
-      const draft = getWeekDraft(state.selectedWeek).cultos;
-      if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
+
+      // Cargar desde Supabase (si existe), fallback a borrador local
+      loadNoteRow(state.selectedWeek, 'cultos').then(row => {
+        const db = row && row.data ? row.data : null;
+        const draftLocal = getWeekDraft(state.selectedWeek).cultos;
+        const draft = db || draftLocal;
+        if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
+      }).catch(() => {
+        const draftLocal = getWeekDraft(state.selectedWeek).cultos;
+        if (draftLocal) applyRteDraft(draftLocal, cultosTema, cultosDate, cultosNotes);
+      });
       showNoteSheet(notesSheetCultos);
     };
 
@@ -1008,8 +1101,17 @@ btnBack?.addEventListener('click', () => {
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
       lideresStatus && (lideresStatus.textContent = '');
       setDateIfEmpty(lideresDate);
-      const draft = getWeekDraft(state.selectedWeek).lideres;
-      if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
+
+      // Cargar desde Supabase (si existe), fallback a borrador local
+      loadNoteRow(state.selectedWeek, 'lideres').then(row => {
+        const db = row && row.data ? row.data : null;
+        const draftLocal = getWeekDraft(state.selectedWeek).lideres;
+        const draft = db || draftLocal;
+        if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
+      }).catch(() => {
+        const draftLocal = getWeekDraft(state.selectedWeek).lideres;
+        if (draftLocal) applyRteDraft(draftLocal, lideresTema, lideresDate, lideresNotes);
+      });
       showNoteSheet(notesSheetLideres);
     };
 
